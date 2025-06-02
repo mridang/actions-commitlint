@@ -1,4 +1,7 @@
 module.exports = {
   entry: ['src/index.ts'],
-  ignoreDependencies: ['@semantic-release/.*?'],
+  ignoreDependencies: [
+    '@semantic-release/.*?',
+    '@commitlint/config-conventional',
+  ],
 };

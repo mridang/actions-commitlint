@@ -1,103 +1,121 @@
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync as fsExistsSync } from 'node:fs';
+import {
+  resolve as pathResolve,
+  extname as pathExtname,
+  basename as pathBasename,
+} from 'node:path';
 import {
   getInput,
-  info,
-  setFailed,
   setOutput,
+  setFailed,
+  info,
   warning as coreWarning,
+  startGroup,
+  endGroup,
 } from '@actions/core';
 import { context as eventContext, getOctokit } from '@actions/github';
-import type { GitHub } from '@actions/github/lib/utils.js';
-import lint from '@commitlint/lint';
-import { format } from '@commitlint/format';
-import load from '@commitlint/load';
+import { cosmiconfig } from 'cosmiconfig';
 import type {
-  LintOptions,
-  LintOutcome,
-  PluginRecords,
-  QualifiedRules,
-} from '@commitlint/types';
+  ActualLintProblem,
+  CommitToLint,
+  LintedCommit,
+  OutputResult,
+  CosmiconfigSearchResult,
+  ICommitlintStrategy,
+  ICommitFetcher,
+  OctokitInstance,
+} from './types.js';
+import { ConfigFileType } from './types.js';
 
-// --- Derived Type Definitions ---
-type ActualParserOptions = NonNullable<LintOptions['parserOpts']>;
-type ActualLintProblem = LintOutcome['errors'][number];
+import { DeclarativeStrategy } from './strategies/declarative.js';
+import { ImperativeStrategy } from './strategies/imperative.js';
+import { PullRequestCommitFetcher } from './fetchers/pull-request.js';
+import { PushEventCommitFetcher } from './fetchers/push-event.js';
+import { MergeGroupCommitFetcher } from './fetchers/merge-group.js';
+import { Linter } from './linter/index.js';
 
-// --- Explicit Expected Config Structure ---
-/**
- * Defines the expected structure of the configuration object loaded by `load()`.
- * This interface includes properties commonly used by commitlint and accessed in this action.
- * Index signatures have been removed to align with the stricter QualifiedConfig type.
- */
-interface ExpectedCommitlintConfig {
-  parserPreset?: {
-    name?: string;
-    parserOpts?: ActualParserOptions;
-    // Removed: [key: string]: unknown;
-  };
-  rules?: QualifiedRules;
-  plugins?: PluginRecords;
-  ignores?: ((commit: string) => boolean)[];
-  defaultIgnores?: boolean;
-  helpUrl?: string;
-  // Removed: [key: string]: unknown;
-}
-
-// --- Type Definitions (Action Specific) ---
-type OctokitInstance = InstanceType<typeof GitHub>;
-
-interface CommitToLint {
-  message: string;
-  hash: string;
-}
-
-interface LintedCommit extends CommitToLint {
-  lintResult: LintOutcome;
-}
-
-interface OutputResult {
-  hash: string;
-  message: string;
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
-interface PushEventCommit {
-  message: string;
-  id: string;
-  sha?: string;
-
-  [key: string]: unknown; // This is fine for loosely typed external data
-}
-
-interface MergeGroupPayload {
-  head_sha: string;
-  head_commit: {
-    message: string;
-    [key: string]: unknown; // This is fine for loosely typed external data
-  };
-
-  [key: string]: unknown; // This is fine for loosely typed external data
-}
-
-// --- Constants ---
 const RESULTS_OUTPUT_ID = 'results';
 const MERGE_GROUP_EVENT = 'merge_group';
 const PULL_REQUEST_EVENT = 'pull_request';
 const PULL_REQUEST_TARGET_EVENT = 'pull_request_target';
+const PUSH_EVENT = 'push';
 const PULL_REQUEST_EVENTS: string[] = [
   PULL_REQUEST_EVENT,
   PULL_REQUEST_TARGET_EVENT,
 ];
-const FIRST_COMMIT_SHA = '0000000000000000000000000000000000000000';
 const { GITHUB_EVENT_NAME, GITHUB_WORKSPACE } = process.env;
+const COSMICONFIG_MODULE_NAME = 'commitlint';
 
-// --- Output Generation Functions ---
+/**
+ * Searches for a commitlint configuration file using `cosmiconfig`.
+ *
+ * @param searchFrom - The directory path to start the search from.
+ * @returns A promise that resolves to a {@link CosmiconfigSearchResult} or
+ * `null`.
+ */
+async function findCommitlintConfig(
+  searchFrom: string,
+): Promise<CosmiconfigSearchResult | null> {
+  const explorer = cosmiconfig(COSMICONFIG_MODULE_NAME);
+  try {
+    const result = await explorer.search(searchFrom);
+    if (result && !result.isEmpty) {
+      info(`Found commitlint configuration at: ${result.filepath}`);
+      return result as CosmiconfigSearchResult;
+    }
+    info('No commitlint configuration file found by cosmiconfig.');
+    return null;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    coreWarning(
+      `Error searching for commitlint configuration: ${errorMessage}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Determines the type of a configuration file.
+ *
+ * @param filepath - The absolute path to the configuration file.
+ * @returns The {@link ConfigFileType}.
+ */
+function getConfigType(filepath: string): ConfigFileType {
+  const extension = pathExtname(filepath).toLowerCase();
+  switch (extension) {
+    case '.json':
+    case '.yaml':
+    case '.yml':
+      return ConfigFileType.Declarative;
+    case '.js':
+    case '.cjs':
+    case '.mjs':
+    case '.ts':
+      return ConfigFileType.Imperative;
+    default:
+      if (pathBasename(filepath) === 'package.json') {
+        return ConfigFileType.Declarative;
+      }
+      return ConfigFileType.Unknown;
+  }
+}
+
+/**
+ * Extracts the message string from a linting problem object.
+ *
+ * @param item - The lint problem object from commitlint.
+ * @returns The human-readable message.
+ */
 function mapMessageValidation(item: ActualLintProblem): string {
   return item.message;
 }
 
+/**
+ * Transforms a {@link LintedCommit} object into an {@link OutputResult}.
+ *
+ * @param lintedCommit - The commit object with its lint result.
+ * @returns An {@link OutputResult} for GitHub Action output.
+ */
 function mapResultOutput({
   hash,
   lintResult: { valid, errors, warnings, input },
@@ -111,24 +129,26 @@ function mapResultOutput({
   };
 }
 
-function generateOutputs(lintedCommits: LintedCommit[]): void {
-  const resultsOutput = lintedCommits.map(mapResultOutput);
-  setOutput(RESULTS_OUTPUT_ID, resultsOutput);
-}
-
-// --- Input Getter Functions ---
+/**
+ * Retrieves the 'token' input for the action.
+ * @returns The GitHub token.
+ */
 function getToken(): string {
   return getInput('token', { required: true });
 }
 
-function getConfigPath(): string {
-  const configFile = getInput('configFile');
-  if (!GITHUB_WORKSPACE) {
-    throw new Error('GITHUB_WORKSPACE environment variable is not set.');
-  }
-  return resolve(GITHUB_WORKSPACE, configFile);
+/**
+ * Retrieves the 'configFile' input path.
+ * @returns The user-specified config file path or empty string.
+ */
+function getConfigFileInput(): string {
+  return getInput('configFile');
 }
 
+/**
+ * Retrieves the 'commitDepth' input.
+ * @returns The commit depth as a number, or `null`.
+ */
 function getCommitDepth(): number | null {
   const commitDepthString = getInput('commitDepth');
   if (!commitDepthString?.trim()) return null;
@@ -136,287 +156,315 @@ function getCommitDepth(): number | null {
   return Number.isNaN(depth) ? null : Math.max(depth, 0);
 }
 
+/**
+ * Retrieves the 'helpURL' input.
+ * @returns The help URL string.
+ */
 function getHelpURL(): string {
   return getInput('helpURL');
 }
 
+/**
+ * Retrieves the 'failOnWarnings' input.
+ * @returns `true` if the action should fail on warnings.
+ */
 function getFailOnWarnings(): boolean {
   return getInput('failOnWarnings') === 'true';
 }
 
+/**
+ * Retrieves the 'failOnErrors' input.
+ * @returns `false` if the action should not fail on errors.
+ */
 function getFailOnErrors(): boolean {
   return getInput('failOnErrors') !== 'false';
 }
 
-// --- GitHub Event Commit Fetcher Functions ---
-async function getPushEventCommits(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
-): Promise<CommitToLint[]> {
-  const { before, after, commits: payloadCommitsUnsafe } = eventContext.payload;
-  const payloadCommits = payloadCommitsUnsafe as PushEventCommit[] | undefined;
-
-  if (before === FIRST_COMMIT_SHA && payloadCommits?.length) {
-    return payloadCommits.map((commit) => ({
-      message: commit.message,
-      hash: commit.id || commit.sha || 'unknown_sha',
-    }));
+/**
+ * Selects and returns the appropriate commit fetcher based on the event name.
+ *
+ * @param eventName - The name of the current GitHub event.
+ * @returns An instance of {@link ICommitFetcher} or `null`.
+ */
+function getCommitFetcher(
+  eventName: string | undefined,
+): ICommitFetcher | null {
+  if (eventName === MERGE_GROUP_EVENT) {
+    return new MergeGroupCommitFetcher();
   }
+  if (eventName && PULL_REQUEST_EVENTS.includes(eventName)) {
+    return new PullRequestCommitFetcher();
+  }
+  if (eventName === PUSH_EVENT) {
+    return new PushEventCommitFetcher();
+  }
+  info(`No specific commit fetcher for event: ${eventName}.`);
+  return null;
+}
 
-  if (
-    typeof before === 'string' &&
-    typeof after === 'string' &&
-    before &&
-    after
-  ) {
-    try {
-      const { data: comparison } = await octokit.rest.repos.compareCommits({
-        owner,
-        repo,
-        head: after,
-        base: before,
-        per_page: 100,
-      });
-      return comparison.commits.map((commit) => ({
-        message: commit.commit.message,
-        hash: commit.sha,
-      }));
-    } catch (error) {
-      coreWarning(`Failed to compare commits: ${(error as Error).message}`);
-      return [];
+/**
+ * Prepares the environment by installing dependencies based on config.
+ *
+ * @param workspacePath - The GITHUB_WORKSPACE path.
+ * @param userSpecifiedConfigFile - Path to config file from input.
+ * @returns The path to the resolved config file, or `null` for defaults.
+ * @throws If an invalid config type is encountered.
+ */
+async function prepareEnvironmentAndGetConfigPath(
+  workspacePath: string,
+  userSpecifiedConfigFile: string,
+): Promise<string | null> {
+  let resolvedConfigPath: string | null = null;
+  let configFileType: ConfigFileType = ConfigFileType.Unknown;
+  let strategy: ICommitlintStrategy | null = null;
+
+  if (userSpecifiedConfigFile) {
+    const absoluteUserPath = pathResolve(
+      workspacePath,
+      userSpecifiedConfigFile,
+    );
+    if (fsExistsSync(absoluteUserPath)) {
+      resolvedConfigPath = absoluteUserPath;
+      configFileType = getConfigType(resolvedConfigPath);
+      info(
+        `Using user-specified configuration file: ${resolvedConfigPath} (Type: ${configFileType})`,
+      );
+    } else {
+      coreWarning(
+        `User-specified configuration file not found: ${absoluteUserPath}. Attempting to find one automatically.`,
+      );
     }
   }
-  return [];
-}
 
-async function getPullRequestEventCommits(
-  octokit: OctokitInstance,
-  owner: string,
-  repo: string,
-  pullNumber: number,
-): Promise<CommitToLint[]> {
-  const { data: commits } = await octokit.rest.pulls.listCommits({
-    owner,
-    repo,
-    pull_number: pullNumber,
-    per_page: 100,
-  });
-  return commits.map((commit) => ({
-    message: commit.commit.message,
-    hash: commit.sha,
-  }));
-}
-
-async function getMergeGroupEventCommits(): Promise<CommitToLint[]> {
-  const mergeGroup = eventContext.payload.merge_group as
-    | MergeGroupPayload
-    | undefined;
-  if (mergeGroup?.head_commit?.message && mergeGroup?.head_sha) {
-    return [
-      {
-        message: mergeGroup.head_commit.message,
-        hash: mergeGroup.head_sha,
-      },
-    ];
+  if (!resolvedConfigPath) {
+    const searchResult: CosmiconfigSearchResult | null =
+      await findCommitlintConfig(workspacePath);
+    if (searchResult?.filepath) {
+      resolvedConfigPath = searchResult.filepath;
+      configFileType = getConfigType(resolvedConfigPath);
+      info(
+        `Automatically found configuration file: ${resolvedConfigPath} (Type: ${configFileType})`,
+      );
+    }
   }
-  coreWarning(
-    'Merge group payload did not contain expected head_commit information.',
-  );
-  return [];
-}
 
-async function getEventCommits(
-  octokit: OctokitInstance,
-  currentEventName: string | undefined,
-): Promise<CommitToLint[]> {
-  const { owner, repo, number: issueNumber } = eventContext.issue;
-
-  if (currentEventName === MERGE_GROUP_EVENT) {
-    return getMergeGroupEventCommits();
-  }
-  if (
-    currentEventName &&
-    PULL_REQUEST_EVENTS.includes(currentEventName) &&
-    issueNumber
-  ) {
-    return getPullRequestEventCommits(octokit, owner, repo, issueNumber);
-  }
-  if (currentEventName === 'push' && eventContext.payload.commits) {
-    return getPushEventCommits(octokit, owner, repo);
-  }
-  info(`No specific commit retrieval logic for event: ${currentEventName}.`);
-  return [];
-}
-
-// --- Commitlint Specific Helper Functions ---
-
-/**
- * Extracts linting options from a loaded commitlint configuration.
- * @param loadedUserConfig - The configuration object, asserted to {@link ExpectedCommitlintConfig}.
- * @returns An {@link LintOptions} object for use with `@commitlint/lint`.
- */
-function getOptsFromConfig(
-  loadedUserConfig: ExpectedCommitlintConfig,
-): LintOptions {
-  const parserOptsValue = loadedUserConfig.parserPreset?.parserOpts;
-
-  return {
-    parserOpts: parserOptsValue ?? {},
-    plugins: loadedUserConfig.plugins ?? {},
-    ignores: loadedUserConfig.ignores ?? [],
-    defaultIgnores: loadedUserConfig.defaultIgnores ?? true,
-    helpUrl: loadedUserConfig.helpUrl,
-  };
-}
-
-/**
- * Formats the linting results into a human-readable string.
- * @param lintedCommits - An array of {@link LintedCommit}.
- * @param loadedUserConfig - The loaded commitlint configuration, asserted to {@link ExpectedCommitlintConfig}.
- * @param configuredHelpUrl - A specific help URL from action input.
- * @returns A formatted string representing the lint results.
- */
-function formatLintResults(
-  lintedCommits: LintedCommit[],
-  loadedUserConfig: ExpectedCommitlintConfig,
-  configuredHelpUrl: string,
-): string {
-  return format(
-    { results: lintedCommits.map((commit) => commit.lintResult) },
-    {
-      color: true,
-      helpUrl: configuredHelpUrl || loadedUserConfig.helpUrl,
-    },
-  );
-}
-
-// --- Logic for Handling Lint Results ---
-function hasOnlyWarnings(lintedCommits: LintedCommit[]): boolean {
-  return (
-    lintedCommits.length > 0 &&
-    lintedCommits.every(({ lintResult }) => lintResult.valid) &&
-    lintedCommits.some(({ lintResult }) => lintResult.warnings.length > 0)
-  );
-}
-
-function setActionFailed(formattedResults: string): void {
-  setFailed(`You have commit messages with errors:\n\n${formattedResults}`);
-}
-
-function handleOnlyWarnings(
-  formattedResults: string,
-  shouldFailOnWarnings: boolean,
-): void {
-  if (shouldFailOnWarnings) {
-    setActionFailed(
-      `Failing due to warnings (failOnWarnings is true):\n\n${formattedResults}`,
-    );
-  } else {
+  if (!resolvedConfigPath) {
     info(
-      `You have commit messages with warnings (but no errors):\n\n${formattedResults}`,
+      'No commitlint configuration file specified or found. Linting will proceed with default @commitlint/config-conventional settings. No specific dependency installation strategy will be run.',
     );
+    return null;
   }
+
+  if (
+    pathBasename(resolvedConfigPath) === 'package.json' &&
+    configFileType === ConfigFileType.Declarative
+  ) {
+    info(
+      `Configuration found in 'package.json'. Using ImperativeStrategy (npm install on existing package.json).`,
+    );
+    strategy = new ImperativeStrategy();
+  } else {
+    switch (configFileType) {
+      case ConfigFileType.Declarative:
+        strategy = new DeclarativeStrategy();
+        break;
+      case ConfigFileType.Imperative:
+        strategy = new ImperativeStrategy();
+        break;
+      case ConfigFileType.Unknown:
+        throw new Error(
+          `Could not determine a valid configuration type for ${resolvedConfigPath}. Please ensure it's a recognized commitlint config format (JSON, YAML, JS) or a package.json with a 'commitlint' key.`,
+        );
+    }
+  }
+
+  if (strategy) {
+    startGroup(
+      `Preparing dependencies for config: ${resolvedConfigPath} (Strategy: ${strategy.constructor.name})`,
+    );
+    await strategy.execute(resolvedConfigPath, workspacePath);
+    endGroup();
+  }
+  return resolvedConfigPath;
 }
 
-// --- Main Action Logic ---
+/**
+ * Orchestrates the core commit linting process using the Linter class.
+ *
+ * @param commitsToProcess - Array of {@link CommitToLint} to be linted.
+ * @param effectiveConfigPath - Path to the config file, or `null` for defaults.
+ * @param helpUrl - Custom help URL from action input.
+ * @param workspace - The GitHub workspace path.
+ */
 async function runLintingProcess(
   commitsToProcess: CommitToLint[],
+  effectiveConfigPath: string | null,
+  helpUrl: string,
+  workspace: string,
 ): Promise<void> {
-  const pathConfig = getConfigPath();
-  const depthCommit = getCommitDepth();
-  const helpUrlInput = getHelpURL();
   const failOnWarns = getFailOnWarnings();
   const failOnErrs = getFailOnErrors();
 
-  const finalCommitsToLint = depthCommit
-    ? commitsToProcess.slice(0, depthCommit)
-    : commitsToProcess;
-
-  if (finalCommitsToLint.length === 0) {
-    info('No commits to lint.');
-    return;
-  }
-
-  if (pathConfig?.endsWith('.js')) {
-    throw new Error(
-      "JavaScript configuration files must use '.mjs' or '.cjs' extension.",
-    );
-  }
-
-  const loadedConfigFromLoad = existsSync(pathConfig)
-    ? await load({}, { file: pathConfig })
-    : await load({ extends: ['@commitlint/config-conventional'] });
-
-  const loadedUserConfig = loadedConfigFromLoad as ExpectedCommitlintConfig;
-
-  const lintingOpts = getOptsFromConfig(loadedUserConfig);
-
-  const lintedCommits: LintedCommit[] = await Promise.all(
-    finalCommitsToLint.map(async (commit) => ({
-      ...commit,
-      lintResult: await lint(
-        commit.message,
-        loadedUserConfig.rules,
-        lintingOpts,
-      ),
-    })),
+  const linter = new Linter(
+    commitsToProcess,
+    effectiveConfigPath,
+    helpUrl,
+    workspace,
   );
+  const result = await linter.lint();
 
-  const formattedResults = formatLintResults(
-    lintedCommits,
-    loadedUserConfig,
-    helpUrlInput,
-  );
-  generateOutputs(lintedCommits);
+  const resultsOutputForAction = result.lintedCommits.map(mapResultOutput);
+  setOutput(RESULTS_OUTPUT_ID, resultsOutputForAction);
 
-  const onlyWarningsPresent = hasOnlyWarnings(lintedCommits);
-  const hasErrors = lintedCommits.some(
-    (commit) => !commit.lintResult.valid && commit.lintResult.errors.length > 0,
-  );
-
-  if (onlyWarningsPresent) {
-    handleOnlyWarnings(formattedResults, failOnWarns);
-  } else if (hasErrors) {
+  if (result.hasErrors()) {
     if (failOnErrs) {
-      setActionFailed(formattedResults);
+      setFailed(`Commit linter failed:\n\n${result.formattedResults}`);
     } else {
+      coreWarning(
+        `Commit messages have errors, but 'failOnErrors' is false. Passing with a warning. Results:\n\n${result.formattedResults}`,
+      );
       info(
-        `Commit messages have errors, but 'failOnErrors' is false. Passing with a warning. ✅\n\n${formattedResults}`,
+        'Action passed despite errors due to failOnErrors=false setting. ✅',
       );
     }
-  } else if (
-    formattedResults.trim() !== '' &&
-    !hasErrors &&
-    !onlyWarningsPresent
-  ) {
-    info(`Linting results:\n\n${formattedResults}`);
-    info('Linting passed with some messages. 🎉');
+  } else if (result.hasOnlyWarnings()) {
+    const warningsMessage = `Commit messages have warnings (but no errors):\n\n${result.formattedResults}`;
+    if (failOnWarns) {
+      setFailed(`Commit linter failed:\n\n${warningsMessage}`);
+    } else {
+      coreWarning(warningsMessage);
+    }
   } else {
-    info('All commit messages are lint free! 🎉');
+    if (
+      result.formattedResults.trim().length > 0 &&
+      result.lintedCommits.some(
+        (commit) => commit.lintResult.warnings.length > 0,
+      )
+    ) {
+      info(
+        `Linting complete. Some warnings were found but did not cause failure:\n\n${result.formattedResults}`,
+      );
+    } else if (
+      result.formattedResults.trim().length === 0 &&
+      result.lintedCommits.every(
+        (c) => c.lintResult.valid && c.lintResult.warnings.length === 0,
+      )
+    ) {
+      info('All commit messages are lint free! 🎉');
+    } else {
+      info(`Linting complete. Results:\n\n${result.formattedResults}`);
+    }
   }
 }
 
-function createErrorHandler(message: string): (error: Error | unknown) => void {
+/**
+ * Creates an error handler for critical, unhandled errors.
+ *
+ * @param message - Context message for the error.
+ * @returns A function to handle the error and fail the action.
+ */
+function createCriticalErrorHandler(
+  message: string,
+): (error: Error | unknown) => void {
   return (error: Error | unknown): void => {
+    const baseFailureMessage = 'Commit linter failed:\n\n';
     if (error instanceof Error) {
-      setFailed(`${message}\nError: ${error.message}\nStack: ${error.stack}`);
+      setFailed(
+        `${baseFailureMessage}${message}\nError: ${error.message}\nStack: ${error.stack ?? 'N/A'}`,
+      );
     } else {
-      setFailed(`${message}\nAn unknown error occurred: ${String(error)}`);
+      setFailed(
+        `${baseFailureMessage}${message}\nAn unknown error occurred: ${String(error)}`,
+      );
     }
   };
 }
 
-async function run(): Promise<void> {
+/**
+ * Main entry point for the GitHub Action.
+ * @param octokitInstance - Optional Octokit instance for testing. If not
+ * provided, a new one will be created.
+ */
+export async function runx(octokitInstance?: OctokitInstance): Promise<void> {
   try {
     const token = getToken();
-    const octokit = getOctokit(token);
+    const octokit = octokitInstance || getOctokit(token);
+    const workspace = GITHUB_WORKSPACE;
+
+    if (!workspace) {
+      throw new Error(
+        'GITHUB_WORKSPACE is not defined. This action must run in a workspace context.',
+      );
+    }
+
+    const userConfigFile = getConfigFileInput();
+    const helpUrl = getHelpURL();
+    const commitDepth = getCommitDepth();
+
+    startGroup('Environment Preparation & Configuration Loading');
+    const effectiveConfigPath = await prepareEnvironmentAndGetConfigPath(
+      workspace,
+      userConfigFile,
+    );
+    endGroup();
+
+    startGroup('Fetching Commits');
     info(`Fetching commits for event: ${GITHUB_EVENT_NAME || 'unknown'}...`);
-    const eventCommits = await getEventCommits(octokit, GITHUB_EVENT_NAME);
-    await runLintingProcess(eventCommits);
-  } catch (error) {
-    createErrorHandler('Error running commitlint action')(error);
+
+    const { owner, repo, number: issueNumber } = eventContext.issue;
+    const commitFetcher = getCommitFetcher(GITHUB_EVENT_NAME);
+    let eventCommits: CommitToLint[] = [];
+
+    if (commitFetcher) {
+      eventCommits = await commitFetcher.fetchCommits(
+        octokit,
+        owner,
+        repo,
+        eventContext.payload,
+        GITHUB_EVENT_NAME,
+        issueNumber,
+      );
+    } else {
+      coreWarning(
+        `No suitable commit fetcher found for event: ${GITHUB_EVENT_NAME}. No commits will be linted.`,
+      );
+    }
+    endGroup();
+
+    const commitsToLint =
+      commitDepth && eventCommits.length > commitDepth
+        ? eventCommits.slice(0, commitDepth)
+        : eventCommits;
+
+    if (commitsToLint.length > 0) {
+      startGroup('Linting Commits');
+      await runLintingProcess(
+        commitsToLint,
+        effectiveConfigPath,
+        helpUrl,
+        workspace,
+      );
+      endGroup();
+    } else {
+      coreWarning('No commits found to lint.');
+    }
+  } catch (error: unknown) {
+    createCriticalErrorHandler('Critical error in commitlint action execution')(
+      error,
+    );
   }
 }
 
-run();
+if (process.env.JEST_WORKER_ID === undefined) {
+  runx().catch((error: unknown) => {
+    if (error instanceof Error) {
+      setFailed(
+        `Unhandled top-level error in action: ${error.message}\n${error.stack ?? 'N/A'}`,
+      );
+    } else {
+      setFailed(
+        `Unhandled unknown top-level error in action: ${String(error)}`,
+      );
+    }
+  });
+}
