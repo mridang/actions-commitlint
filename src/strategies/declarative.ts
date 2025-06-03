@@ -18,14 +18,16 @@ export class DeclarativeStrategy
 {
   /**
    * Reads and parses a standalone declarative configuration file.
-   * This method determines the file type based on its extension or common naming conventions
-   * (e.g., `.commitlintrc` is typically JSON) and parses it accordingly.
+   * This method determines the file type based on its extension. For common
+   * extensionless names (e.g., `.commitlintrc`), it first attempts to parse
+   * as JSON, then falls back to YAML if JSON parsing fails.
    * Supported formats are JSON and YAML.
    *
    * @param filepath - The absolute path to the declarative configuration file.
    * @returns A promise that resolves to the parsed {@link RawDeclarativeConfig}.
-   * @throws If the file cannot be read, if the file format is unsupported,
-   * or if parsing fails due to malformed content.
+   * @throws If the file cannot be read, if the file format is unsupported
+   * after trying fallbacks for extensionless files, or if parsing fails due to
+   * malformed content.
    */
   private async _parseDeclarativeConfigFile(
     filepath: string,
@@ -34,81 +36,110 @@ export class DeclarativeStrategy
     const filename = path.basename(filepath);
     const fileContent = await fsPromises.readFile(filepath, 'utf8');
 
-    let parsedConfig: RawDeclarativeConfig;
-
     switch (extension) {
       case '.json':
         info(`Parsing '${filename}' as JSON.`);
-        parsedConfig = JSON.parse(fileContent) as RawDeclarativeConfig;
-        break;
+        return JSON.parse(fileContent) as RawDeclarativeConfig;
       case '.yaml':
       case '.yml':
         info(`Parsing '${filename}' as YAML.`);
-        parsedConfig = parseYaml(fileContent) as RawDeclarativeConfig;
-        break;
+        return parseYaml(fileContent) as RawDeclarativeConfig;
       case '':
-        info(
-          `Attempting to parse extensionless file '${filename}' as JSON (common convention).`,
-        );
+        info(`Attempting JSON parse for extensionless file '${filename}'.`);
         try {
-          parsedConfig = JSON.parse(fileContent) as RawDeclarativeConfig;
+          return JSON.parse(fileContent) as RawDeclarativeConfig;
         } catch (jsonError: unknown) {
           const jErrorMsg =
             jsonError instanceof Error ? jsonError.message : String(jsonError);
-          warning(
-            `Failed to parse extensionless file '${filename}' as JSON: ${jErrorMsg}.`,
-          );
-          throw new Error(
-            `Unsupported or malformed extensionless configuration file '${filename}'. Attempted JSON parsing failed: ${jErrorMsg}`,
-          );
+          warning(`JSON parse failed for '${filename}': ${jErrorMsg}.`);
+          info(`Attempting YAML parse for '${filename}' as fallback.`);
+          try {
+            const yamlParsedConfig = parseYaml(
+              fileContent,
+            ) as RawDeclarativeConfig;
+            info(`Successfully parsed '${filename}' as YAML.`);
+            return yamlParsedConfig;
+          } catch (yamlError: unknown) {
+            const yErrorMsg =
+              yamlError instanceof Error
+                ? yamlError.message
+                : String(yamlError);
+            throw new Error(
+              `File '${filename}': JSON parse failed (Error: ${jErrorMsg}), YAML parse also failed (Error: ${yErrorMsg}). Unsupported format or malformed.`,
+            );
+          }
         }
-        break;
       default:
         throw new Error(
-          `Unsupported declarative configuration file format or extension: '${extension}' for path ${filepath}`,
+          `Unsupported declarative config file format/extension: '${extension}' for '${filepath}'.`,
         );
     }
-    return parsedConfig;
   }
 
   /**
-   * Extracts package names from the 'extends' and 'plugins' fields of a raw declarative config.
-   * These package names are typically npm package identifiers.
+   * Extracts package names from the 'extends' and 'plugins' fields of a raw
+   * declarative configuration using a functional approach. These package names
+   * are typically npm package identifiers.
    *
-   * @param config - The {@link RawDeclarativeConfig} object, usually parsed from a config file.
-   * @returns An array of unique package names identified for potential installation.
-   * Returns an empty array if no relevant 'extends' or 'plugins' are found.
+   * It handles cases where `extends` is a string or an array, and where
+   * `plugins` is an array of strings or `[name, options]` tuples.
+   * Invalid entries (null, undefined, empty strings) are filtered out.
+   *
+   * @example
+   * const strategy = new DeclarativeStrategy(); // Needs instantiation context
+   * // Example 1: Both extends and plugins
+   * const config1 = {
+   * extends: "@commitlint/config-conventional",
+   * plugins: ["plugin-foo", ["plugin-bar", { "opt": true }]]
+   * };
+   * strategy._extractDependenciesFromDeclarativeConfig(config1);
+   * // Returns: ["@commitlint/config-conventional", "plugin-foo", "plugin-bar"]
+   *
+   * // Example 2: Only extends (array)
+   * const config2 = { extends: ["config-A", "config-B"] };
+   * strategy._extractDependenciesFromDeclarativeConfig(config2);
+   * // Returns: ["config-A", "config-B"]
+   *
+   * // Example 3: Only plugins (with invalid entries)
+   * const config3 = { plugins: ["plugin-X", ["", {}], null, "plugin-Y"] };
+   * strategy._extractDependenciesFromDeclarativeConfig(config3);
+   * // Returns: ["plugin-X", "plugin-Y"]
+   *
+   * @param config - The {@link RawDeclarativeConfig} object, usually parsed
+   * from a config file.
+   * @returns An array of unique, trimmed package names identified for
+   * potential installation. Returns an empty array if no relevant 'extends'
+   * or 'plugins' are found, or if they contain no valid package names.
    */
   private _extractDependenciesFromDeclarativeConfig(
     config: RawDeclarativeConfig,
   ): string[] {
-    const packages: Set<string> = new Set();
+    const extendsArray = Array.isArray(config.extends)
+      ? config.extends
+      : config.extends
+        ? [config.extends]
+        : [];
 
-    if (config.extends) {
-      const extendsValue = Array.isArray(config.extends)
-        ? config.extends
-        : [config.extends];
-      extendsValue.forEach((ext) => {
-        if (typeof ext === 'string' && ext.trim() !== '') {
-          packages.add(ext);
-        }
-      });
-    }
+    const validExtends = extendsArray
+      .filter(
+        (ext): ext is string => typeof ext === 'string' && ext.trim() !== '',
+      )
+      .map((ext) => ext.trim());
 
-    if (config.plugins && Array.isArray(config.plugins)) {
-      config.plugins.forEach((plugin) => {
-        if (typeof plugin === 'string' && plugin.trim() !== '') {
-          packages.add(plugin);
-        } else if (
-          Array.isArray(plugin) &&
-          typeof plugin[0] === 'string' &&
-          plugin[0].trim() !== ''
-        ) {
-          packages.add(plugin[0]);
+    const validPlugins = (config.plugins ?? [])
+      .map((plugin) => {
+        if (typeof plugin === 'string') {
+          return plugin.trim();
         }
-      });
-    }
-    return Array.from(packages);
+        if (Array.isArray(plugin) && typeof plugin[0] === 'string') {
+          return plugin[0].trim();
+        }
+        return null;
+      })
+      .filter((name): name is string => name !== null && name !== '');
+
+    const allPackages = [...validExtends, ...validPlugins];
+    return Array.from(new Set(allPackages));
   }
 
   /**

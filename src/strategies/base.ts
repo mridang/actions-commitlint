@@ -29,8 +29,8 @@ export abstract class AbstractStrategy implements ICommitlintStrategy {
    * @throws If the npm command fails.
    */
   protected runNpmInstall(workingDirectory: string): void {
-    const command = 'npm install';
-    info(`Executing synchronously: ${command} in ${workingDirectory}`);
+    const command = 'npm install --quiet --no-audit --no-fund';
+    info(`Executing: ${command} in ${workingDirectory}`);
 
     try {
       const output = execSync(command, {

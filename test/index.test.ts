@@ -45,7 +45,7 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
 
   const setActionInputs = (inputs: Record<string, string | undefined>) => {
     for (const key in inputs) {
-      const upperKey = key.toUpperCase().replace(/-/g, '_');
+      const upperKey = key.toUpperCase();
       if (inputs[key] !== undefined) {
         process.env[`INPUT_${upperKey}`] = inputs[key];
       } else {
@@ -116,7 +116,7 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
       createPkgJson: true,
       inputs: {
         token: 'fake-token',
-        configFile: '.commitlintrc.json',
+        'config-file': '.commitlintrc.json',
         'fail-on-errors': 'true',
         'fail-on-warnings': 'false',
       },
@@ -134,7 +134,7 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
       createPkgJson: true,
       inputs: {
         token: 'fake-token',
-        configFile: '.commitlintrc.json',
+        'config-file': '.commitlintrc.json',
         'fail-on-errors': 'true',
         'fail-on-warnings': 'false',
       },
@@ -153,7 +153,7 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
       createPkgJson: true,
       inputs: {
         token: 'fake-token',
-        configFile: 'commitlint.config.js',
+        'config-file': 'commitlint.config.js',
         'fail-on-errors': 'true',
         'fail-on-warnings': 'false',
       },
@@ -178,7 +178,7 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
       createPkgJson: true,
       inputs: {
         token: 'fake-token',
-        configFile: 'commitlint.config.js',
+        'config-file': 'commitlint.config.js',
         'fail-on-errors': 'false',
         'fail-on-warnings': 'false',
       },

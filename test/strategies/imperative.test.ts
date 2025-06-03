@@ -1,26 +1,15 @@
-import {
-  existsSync,
-  mkdirSync,
-  rmSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import { dirname, join as pathJoin } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { join as pathJoin } from 'node:path';
 import { ImperativeStrategy } from '../../src/strategies/imperative.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 describe('ImperativeStrategy', () => {
-  const testDir = pathJoin(__dirname, 'test_temp_imperative_nomock');
-  const dummyConfigPath = pathJoin(testDir, 'commitlint.config.js');
+  let testDir: string;
 
   beforeEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
-    mkdirSync(testDir, { recursive: true });
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-'));
   });
 
   afterEach(() => {
@@ -42,7 +31,7 @@ describe('ImperativeStrategy', () => {
     );
 
     await expect(
-      strategy.execute(dummyConfigPath, testDir),
+      strategy.execute(pathJoin(testDir, 'commitlint.config.js'), testDir),
     ).resolves.not.toThrow();
   });
 
@@ -54,7 +43,9 @@ describe('ImperativeStrategy', () => {
       unlinkSync(packageJsonPath);
     }
 
-    await expect(strategy.execute(dummyConfigPath, testDir)).rejects.toThrow(
+    await expect(
+      strategy.execute(pathJoin(testDir, 'commitlint.config.js'), testDir),
+    ).rejects.toThrow(
       `Imperative strategy: package.json not found in '${testDir}' at '${packageJsonPath}'. A package.json is required for this strategy.`,
     );
   });
@@ -74,7 +65,10 @@ describe('ImperativeStrategy', () => {
     );
 
     try {
-      await strategy.execute(dummyConfigPath, testDir);
+      await strategy.execute(
+        pathJoin(testDir, 'commitlint.config.js'),
+        testDir,
+      );
       throw new Error(
         'Expected strategy.execute to throw an error for failing npm install, but it did not.',
       );

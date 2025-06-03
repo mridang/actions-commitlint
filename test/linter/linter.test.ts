@@ -1,40 +1,18 @@
 import { Linter } from '../../src/linter/index.js';
 import type { LinterResult } from '../../src/types.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join as pathJoin } from 'node:path';
+import fs, { existsSync, rmSync, writeFileSync } from 'node:fs';
+import path, { join as pathJoin } from 'node:path';
 import * as os from 'node:os';
 import { RuleConfigSeverity } from '@commitlint/types';
 import { stringify as stringifyYaml } from 'yaml';
 
 describe('Linter', () => {
-  const testDirRoot = pathJoin(
-    os.tmpdir(),
-    'commitlint_linter_tests_nomock_v8',
-  );
   let testDir: string;
-  let testCounter = 0;
   const dummyHelpUrl = 'https://example.com/commit-help';
   const projectRootPath = process.cwd();
 
-  beforeAll(() => {
-    if (existsSync(testDirRoot)) {
-      rmSync(testDirRoot, { recursive: true, force: true });
-    }
-    mkdirSync(testDirRoot, { recursive: true });
-  });
-
   beforeEach(() => {
-    testCounter++;
-    const currentTestNameForDir = (
-      expect.getState().currentTestName ||
-      `test-linter-${Date.now()}-${testCounter}`
-    ).replace(/[^\w.-]/g, '_');
-    testDir = pathJoin(testDirRoot, currentTestNameForDir);
-
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
-    mkdirSync(testDir, { recursive: true });
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-'));
   });
 
   afterEach(() => {

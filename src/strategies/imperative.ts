@@ -20,7 +20,7 @@ export class ImperativeStrategy
    *
    * This method requires a `package.json` file to be present in the
    * `workingDirectory`. If the `package.json` is found, it proceeds to run
-   * `npm install` synchronously using the inherited `runNpmInstallSync` method
+   * `npm install` using the inherited `runNpmInstallSync` method
    * from the `AbstractStrategy`. The `configFilePath` is logged for context
    * but not directly used for dependency resolution by this strategy.
    *

@@ -138,46 +138,46 @@ function getToken(): string {
 }
 
 /**
- * Retrieves the 'configFile' input path.
+ * Retrieves the 'config-file' input path.
  * @returns The user-specified config file path or empty string.
  */
 function getConfigFileInput(): string {
-  return getInput('configFile');
+  return getInput('config-file');
 }
 
 /**
- * Retrieves the 'commitDepth' input.
+ * Retrieves the 'commit-depth' input.
  * @returns The commit depth as a number, or `null`.
  */
 function getCommitDepth(): number | null {
-  const commitDepthString = getInput('commitDepth');
+  const commitDepthString = getInput('commit-depth');
   if (!commitDepthString?.trim()) return null;
   const depth = parseInt(commitDepthString, 10);
   return Number.isNaN(depth) ? null : Math.max(depth, 0);
 }
 
 /**
- * Retrieves the 'helpURL' input.
+ * Retrieves the 'help-url' input.
  * @returns The help URL string.
  */
 function getHelpURL(): string {
-  return getInput('helpURL');
+  return getInput('help-url');
 }
 
 /**
- * Retrieves the 'failOnWarnings' input.
+ * Retrieves the 'fail-on-warnings' input.
  * @returns `true` if the action should fail on warnings.
  */
 function getFailOnWarnings(): boolean {
-  return getInput('failOnWarnings') === 'true';
+  return getInput('fail-on-warnings') === 'true';
 }
 
 /**
- * Retrieves the 'failOnErrors' input.
+ * Retrieves the 'fail-on-errors' input.
  * @returns `false` if the action should not fail on errors.
  */
 function getFailOnErrors(): boolean {
-  return getInput('failOnErrors') !== 'false';
+  return getInput('fail-on-errors') !== 'false';
 }
 
 /**
