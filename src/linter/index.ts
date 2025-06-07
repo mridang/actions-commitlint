@@ -1,6 +1,6 @@
 /* eslint-disable testing-library/no-debugging-utils */
 import { existsSync as fsExistsSync } from 'node:fs';
-import { info, debug, warning as coreWarning } from '@actions/core';
+import { info, warning as coreWarning } from '@actions/core';
 import lintLib from '@commitlint/lint';
 import { format as formatResult } from '@commitlint/format';
 import loadConfig from '@commitlint/load';

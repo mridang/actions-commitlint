@@ -2,11 +2,7 @@ import nock from 'nock';
 import { getOctokit } from '@actions/github';
 import axios from 'axios';
 import { PullRequestCommitFetcher } from '../../src/fetchers/pull-request.js';
-import type {
-  CommitToLint,
-  OctokitInstance,
-  PullRequestEventPayloadSubset,
-} from '../../src/types.js';
+import type { OctokitInstance } from '../../src/types.js';
 import { buildAxiosFetch } from './utils/nockios.js';
 
 beforeAll(() => {
@@ -52,16 +48,14 @@ describe('PullRequestCommitFetcher', () => {
         },
       ]);
 
-    const dummyPayloadSubset: PullRequestEventPayloadSubset = {
-      action: 'opened',
-      number: 123,
-    };
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
-      dummyPayloadSubset,
+      {
+        action: 'opened',
+        number: 123,
+      },
     );
 
     expect(commits).toEqual([
@@ -78,16 +72,14 @@ describe('PullRequestCommitFetcher', () => {
       .query(true)
       .reply(200, []);
 
-    const dummyPayloadSubset: PullRequestEventPayloadSubset = {
-      action: 'opened',
-      number: 123,
-    };
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
-      dummyPayloadSubset,
+      {
+        action: 'opened',
+        number: 123,
+      },
     );
 
     expect(commits).toEqual([]);
@@ -95,15 +87,14 @@ describe('PullRequestCommitFetcher', () => {
   });
 
   it('should return an empty array if pullNumber is not provided', async () => {
-    const dummyPayloadSubset: PullRequestEventPayloadSubset = {
-      action: 'opened',
-      number: 0,
-    };
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
-      dummyPayloadSubset,
+      {
+        action: 'opened',
+        number: 0,
+      },
     );
 
     expect(commits).toEqual([]);
@@ -117,18 +108,11 @@ describe('PullRequestCommitFetcher', () => {
       .query(true)
       .reply(500, { message: 'Internal Server Error' });
 
-    const dummyPayloadSubset: PullRequestEventPayloadSubset = {
-      action: 'opened',
-      number: 123,
-    };
-
     await expect(
-      fetcher.fetchCommits(
-        octokit,
-        'test-owner',
-        'test-repo',
-        dummyPayloadSubset,
-      ),
+      fetcher.fetchCommits(octokit, 'test-owner', 'test-repo', {
+        action: 'opened',
+        number: 123,
+      }),
     ).rejects.toThrow();
 
     expect(nock.isDone()).toBe(true);
@@ -141,18 +125,11 @@ describe('PullRequestCommitFetcher', () => {
       .query(true)
       .reply(200, { not_an_array: 'unexpected_data' });
 
-    const dummyPayloadSubset: PullRequestEventPayloadSubset = {
-      action: 'opened',
-      number: 123,
-    };
-
     await expect(
-      fetcher.fetchCommits(
-        octokit,
-        'test-owner',
-        'test-repo',
-        dummyPayloadSubset,
-      ),
+      fetcher.fetchCommits(octokit, 'test-owner', 'test-repo', {
+        action: 'opened',
+        number: 123,
+      }),
     ).rejects.toThrow();
 
     expect(nock.isDone()).toBe(true);

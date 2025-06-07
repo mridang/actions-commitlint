@@ -4,7 +4,6 @@ import axios from 'axios';
 import { MergeGroupCommitFetcher } from '../../src/fetchers/merge-group.js';
 import type {
   ActualMergeGroupPayload,
-  CommitToLint,
   MergeGroupEventPayloadSubset,
   OctokitInstance,
 } from '../../src/types.js';
@@ -70,16 +69,14 @@ describe('MergeGroupCommitFetcher', () => {
   });
 
   it('should fetch the head commit from a valid merge_group payload subset', async () => {
-    const eventPayloadSubset = createTestMergeGroupPayloadSubset(
-      'mergegroupheadsha123',
-      'feat: Merge feature branch into main via merge queue',
-    );
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
-      eventPayloadSubset,
+      createTestMergeGroupPayloadSubset(
+        'mergegroupheadsha123',
+        'feat: Merge feature branch into main via merge queue',
+      ),
     );
     expect(commits).toEqual([
       {
@@ -91,27 +88,22 @@ describe('MergeGroupCommitFetcher', () => {
   });
 
   it('should return an empty array if merge_group key is effectively missing in payload subset', async () => {
-    const eventPayloadSubset: MergeGroupEventPayloadSubset = {};
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
-      eventPayloadSubset,
+      {},
     );
     expect(commits).toEqual([]);
     expect(nock.pendingMocks().length).toBe(0);
   });
 
   it('should return an empty array if merge_group property is undefined in payload subset', async () => {
-    const eventPayloadSubset: MergeGroupEventPayloadSubset =
-      createTestMergeGroupPayloadSubset(undefined, undefined);
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
-      eventPayloadSubset,
+      createTestMergeGroupPayloadSubset(undefined, undefined),
     );
     expect(commits).toEqual([]);
     expect(nock.pendingMocks().length).toBe(0);
