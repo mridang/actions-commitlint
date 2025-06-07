@@ -4,9 +4,7 @@ import * as os from 'node:os';
 import nock from 'nock';
 import { jest } from '@jest/globals';
 // noinspection ES6PreferShortImport
-import { runx } from '../src/index.js';
-
-const GITHUB_API_URL_FOR_TESTS = 'https://api.github.com';
+import { run } from '../src/index.js';
 
 describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
   const testDirRoot = pathJoin(
@@ -16,9 +14,6 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
   let testDir: string;
   // eslint-disable-next-line no-undef
   let originalEnv: NodeJS.ProcessEnv;
-
-  const owner = 'test-owner';
-  const repo = 'test-repo';
 
   const setupTestEnvironment = (
     configFileName: string,
@@ -63,11 +58,11 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
     process.env.GITHUB_EVENT_NAME = eventName;
     process.env.GITHUB_EVENT_PATH = pathJoin(testDir, 'event.json');
     writeFileSync(process.env.GITHUB_EVENT_PATH, JSON.stringify(payload));
-    process.env.GITHUB_REPOSITORY = `${owner}/${repo}`;
+    process.env.GITHUB_REPOSITORY = `test-owner/test-repo`;
     process.env.GITHUB_REF = ref;
     process.env.GITHUB_SHA = sha;
     process.env.GITHUB_WORKSPACE = testDir;
-    process.env.GITHUB_API_URL = GITHUB_API_URL_FOR_TESTS;
+    process.env.GITHUB_API_URL = 'https://api.github.com';
   };
 
   beforeAll(() => {
@@ -211,8 +206,8 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
       setupGithubContextAndEnv(
         event.name,
         event.payload as object,
-        owner,
-        repo,
+        'test-owner',
+        'test-repo',
       );
 
       if (
@@ -221,10 +216,16 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
         (event.payload as { before?: string }).before &&
         (event.payload as { after?: string }).after
       ) {
-        nock(GITHUB_API_URL_FOR_TESTS)
+        nock('https://api.github.com')
           .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
           .get(
-            `/repos/${owner}/${repo}/compare/${(event.payload as { before: string }).before}...${(event.payload as { after: string }).after}`,
+            `/repos/test-owner/test-repo/compare/${(event.payload as { before: string }).before}...${
+              (
+                event.payload as {
+                  after: string;
+                }
+              ).after
+            }`,
           )
           .query(true)
           .reply(200, {
@@ -237,12 +238,12 @@ describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
 
       if (expectRunToThrow) {
         try {
-          await runx();
+          await run();
         } catch (e: unknown) {
           expect((e as Error).message).toContain('Commit linter failed');
         }
       } else {
-        await expect(runx()).resolves.not.toThrow();
+        await expect(run()).resolves.not.toThrow();
       }
     },
     90000,

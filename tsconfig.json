@@ -11,7 +11,7 @@
     "esModuleInterop": true,
     "outDir": "dist",
     "typeRoots": ["./node_modules/@types", "./types"],
-    "declaration": true,
+    "declaration": false,
 	  "lib": ["es2023" ]
   },
   "include": [

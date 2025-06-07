@@ -3,14 +3,12 @@ import { getOctokit } from '@actions/github';
 import axios from 'axios';
 import { MergeGroupCommitFetcher } from '../../src/fetchers/merge-group.js';
 import type {
-  CommitToLint,
-  OctokitInstance,
   ActualMergeGroupPayload,
+  CommitToLint,
   MergeGroupEventPayloadSubset,
+  OctokitInstance,
 } from '../../src/types.js';
 import { buildAxiosFetch } from './utils/nockios.js';
-
-const GITHUB_API_URL_FOR_TESTS = 'https://api.github.com';
 
 beforeAll(() => {
   nock.disableNetConnect();
@@ -25,8 +23,6 @@ afterAll(() => {
 });
 
 describe('MergeGroupCommitFetcher', () => {
-  const owner = 'test-owner';
-  const repo = 'test-repo';
   let octokit: OctokitInstance;
   const fetcher = new MergeGroupCommitFetcher();
 
@@ -66,7 +62,7 @@ describe('MergeGroupCommitFetcher', () => {
 
   beforeEach(() => {
     octokit = getOctokit('fake-token', {
-      baseUrl: GITHUB_API_URL_FOR_TESTS,
+      baseUrl: 'https://api.github.com',
       request: {
         fetch: buildAxiosFetch(axios.create({})),
       },
@@ -74,25 +70,22 @@ describe('MergeGroupCommitFetcher', () => {
   });
 
   it('should fetch the head commit from a valid merge_group payload subset', async () => {
-    const headSha = 'mergegroupheadsha123';
-    const commitMessage =
-      'feat: Merge feature branch into main via merge queue';
     const eventPayloadSubset = createTestMergeGroupPayloadSubset(
-      headSha,
-      commitMessage,
+      'mergegroupheadsha123',
+      'feat: Merge feature branch into main via merge queue',
     );
 
     const expectedCommits: CommitToLint[] = [
       {
-        hash: headSha,
-        message: commitMessage,
+        hash: 'mergegroupheadsha123',
+        message: 'feat: Merge feature branch into main via merge queue',
       },
     ];
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
+      'test-owner',
+      'test-repo',
       eventPayloadSubset,
     );
     expect(commits).toEqual(expectedCommits);
@@ -104,8 +97,8 @@ describe('MergeGroupCommitFetcher', () => {
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
+      'test-owner',
+      'test-repo',
       eventPayloadSubset,
     );
     expect(commits).toEqual([]);
@@ -118,8 +111,8 @@ describe('MergeGroupCommitFetcher', () => {
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
+      'test-owner',
+      'test-repo',
       eventPayloadSubset,
     );
     expect(commits).toEqual([]);

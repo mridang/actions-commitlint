@@ -1,10 +1,11 @@
 import type {
-  OctokitInstance,
   CommitToLint,
   ICommitFetcher,
+  OctokitInstance,
   PullRequestEventPayloadSubset,
 } from '../types.js';
 import { warning } from '@actions/core';
+import { getOctokit } from '@actions/github';
 
 /**
  * Implements {@link ICommitFetcher} to retrieve commits associated with a
@@ -16,26 +17,21 @@ export class PullRequestCommitFetcher
   /**
    * Fetches all commits for a given pull request.
    *
-   * @param octokit - An initialized Octokit instance.
+   * @param token - The GitHub token for API authentication.
    * @param owner - The owner of the repository where the pull request exists.
    * @param repo - The name of the repository.
-   * @param _eventPayloadSubset - A subset of the GitHub `PullRequestEvent`
-   * payload. Currently not directly used as `pullNumber` is prioritized.
-   * @param _eventName - The name of the GitHub event (not directly used).
-   * @param pullNumber - The number identifying the pull request. Must be
-   * provided for this fetcher.
+   * @param payload - A subset of the GitHub `PullRequestEvent` payload.
    * @returns A promise that resolves to an array of {@link CommitToLint}
    * objects.
    */
   public async fetchCommits(
-    octokit: OctokitInstance,
+    token: string | OctokitInstance,
     owner: string,
     repo: string,
-    _eventPayloadSubset: PullRequestEventPayloadSubset,
-    _eventName?: string,
-    pullNumber?: number,
+    payload: PullRequestEventPayloadSubset,
   ): Promise<CommitToLint[]> {
-    if (!pullNumber) {
+    const octokit = typeof token === 'string' ? getOctokit(token) : token;
+    if (!payload.number) {
       warning(
         'Pull request number is required for PullRequestCommitFetcher but was not provided.',
       );
@@ -45,7 +41,7 @@ export class PullRequestCommitFetcher
     const { data: commits } = await octokit.rest.pulls.listCommits({
       owner,
       repo,
-      pull_number: pullNumber,
+      pull_number: payload.number,
       per_page: 100,
     });
 

@@ -81,25 +81,21 @@ export interface ICommitFetcher<TEventPayloadSubset = unknown> {
   /**
    * Fetches the relevant commits to be linted based on the GitHub event.
    *
-   * @param octokit - An initialized Octokit instance for making GitHub API
-   * calls.
+   * @param token - The GitHub token for API authentication.
    * @param owner - The owner of the repository where the event occurred.
    * @param repo - The name of the repository.
    * @param eventPayloadSubset - A subset of the GitHub webhook event payload,
    * containing only the fields relevant to this fetcher.
-   * @param eventName - The name of the GitHub event (e.g., 'push',
-   * 'pull_request'). Optional.
    * @param issueNumber - The issue or pull request number if applicable to the
    * event (e.g., for pull request events). Optional.
    * @returns A promise that resolves to an array of {@link CommitToLint}
    * objects representing the commits to be linted.
    */
   fetchCommits(
-    octokit: OctokitInstance,
+    token: string,
     owner: string,
     repo: string,
     eventPayloadSubset: TEventPayloadSubset,
-    eventName?: string,
     issueNumber?: number,
   ): Promise<CommitToLint[]>;
 }

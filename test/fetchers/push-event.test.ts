@@ -3,15 +3,12 @@ import { getOctokit } from '@actions/github';
 import axios from 'axios';
 import { PushEventCommitFetcher } from '../../src/fetchers/push-event.js';
 import type {
+  ActualPushEventCommit,
   CommitToLint,
   OctokitInstance,
-  ActualPushEventCommit,
   PushEventPayloadSubset,
 } from '../../src/types.js';
 import { buildAxiosFetch } from './utils/nockios.js';
-
-const GITHUB_API_URL_FOR_TESTS = 'https://api.github.com';
-const FIRST_COMMIT_SHA_PUSH = '0000000000000000000000000000000000000000';
 
 const createMinimalActualPushEventCommit = (
   id: string,
@@ -51,14 +48,12 @@ afterAll(() => {
 });
 
 describe('PushEventCommitFetcher', () => {
-  const owner = 'test-owner';
-  const repo = 'test-repo';
   let octokit: OctokitInstance;
   const fetcher = new PushEventCommitFetcher();
 
   beforeEach(() => {
     octokit = getOctokit('fake-token', {
-      baseUrl: GITHUB_API_URL_FOR_TESTS,
+      baseUrl: 'https://api.github.com',
       request: {
         fetch: buildAxiosFetch(axios.create({})),
       },
@@ -66,10 +61,9 @@ describe('PushEventCommitFetcher', () => {
   });
 
   it('should fetch commits from payload for an initial push (expecting API call if fetcher logic changes)', async () => {
-    const afterShaForNewBranch = 'afterShaNewBranch';
-    const eventPayloadSubset: PushEventPayloadSubset = {
-      before: FIRST_COMMIT_SHA_PUSH,
-      after: afterShaForNewBranch,
+    const payload: PushEventPayloadSubset = {
+      before: '0000000000000000000000000000000000000000',
+      after: 'afterShaNewBranch',
       commits: [
         createMinimalActualPushEventCommit(
           'commit1',
@@ -89,10 +83,10 @@ describe('PushEventCommitFetcher', () => {
       ],
     };
 
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
       .get(
-        `/repos/${owner}/${repo}/compare/${FIRST_COMMIT_SHA_PUSH}...${afterShaForNewBranch}`,
+        `/repos/test-owner/test-repo/compare/0000000000000000000000000000000000000000...afterShaNewBranch`,
       )
       .query(true)
       .reply(200, apiMockResponse);
@@ -104,26 +98,24 @@ describe('PushEventCommitFetcher', () => {
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
-      eventPayloadSubset,
+      'test-owner',
+      'test-repo',
+      payload,
     );
     expect(commits).toEqual(expectedCommits);
     expect(nock.isDone()).toBe(true);
   });
 
   it('should fetch commits using compareCommits for a subsequent push', async () => {
-    const beforeSha = 'beforeSha123';
-    const afterSha = 'afterSha456';
-    const eventPayloadSubset: PushEventPayloadSubset = {
-      before: beforeSha,
-      after: afterSha,
+    const payload: PushEventPayloadSubset = {
+      before: 'beforeSha123',
+      after: 'afterSha456',
       commits: [],
     };
 
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/compare/${beforeSha}...${afterSha}`)
+      .get(`/repos/test-owner/test-repo/compare/beforeSha123...afterSha456`)
       .query(true)
       .reply(200, {
         commits: [
@@ -139,45 +131,41 @@ describe('PushEventCommitFetcher', () => {
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
-      eventPayloadSubset,
+      'test-owner',
+      'test-repo',
+      payload,
     );
     expect(commits).toEqual(expectedCommits);
     expect(nock.isDone()).toBe(true);
   });
 
   it('should return an empty array if compareCommits returns no commits', async () => {
-    const beforeSha = 'beforeSha789';
-    const afterSha = 'afterSha101';
-    const eventPayloadSubset: PushEventPayloadSubset = {
-      before: beforeSha,
-      after: afterSha,
+    const payload: PushEventPayloadSubset = {
+      before: 'beforeSha789',
+      after: 'afterSha101',
       commits: [],
     };
 
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/compare/${beforeSha}...${afterSha}`)
+      .get(`/repos/test-owner/test-repo/compare/beforeSha789...afterSha101`)
       .query(true)
       .reply(200, { commits: [] });
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
-      eventPayloadSubset,
+      'test-owner',
+      'test-repo',
+      payload,
     );
     expect(commits).toEqual([]);
     expect(nock.isDone()).toBe(true);
   });
 
   it('should throw error if compareCommits fails', async () => {
-    const beforeSha = 'beforeShaFail';
-    const afterSha = 'afterShaFail';
-    const eventPayloadSubset: PushEventPayloadSubset = {
-      before: beforeSha,
-      after: afterSha,
+    const payload: PushEventPayloadSubset = {
+      before: 'beforeShaFail',
+      after: 'afterShaFail',
       commits: [
         createMinimalActualPushEventCommit(
           'payloadFallback1',
@@ -186,23 +174,22 @@ describe('PushEventCommitFetcher', () => {
       ],
     };
 
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/compare/${beforeSha}...${afterSha}`)
+      .get(`/repos/test-owner/test-repo/compare/beforeShaFail...afterShaFail`)
       .query(true)
       .reply(500, { message: 'Server Error' });
 
     await expect(
-      fetcher.fetchCommits(octokit, owner, repo, eventPayloadSubset),
+      fetcher.fetchCommits(octokit, 'test-owner', 'test-repo', payload),
     ).rejects.toThrowError(/Failed to compare commits via API/);
     expect(nock.isDone()).toBe(true);
   });
 
   it('should use payload commits if before and after SHAs are identical', async () => {
-    const sameSha = 'sameSha123';
-    const eventPayloadSubset: PushEventPayloadSubset = {
-      before: sameSha,
-      after: sameSha,
+    const payload: PushEventPayloadSubset = {
+      before: 'sameSha123',
+      after: 'sameSha123',
       commits: [
         createMinimalActualPushEventCommit(
           'forcePushCommit',
@@ -216,16 +203,16 @@ describe('PushEventCommitFetcher', () => {
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
-      eventPayloadSubset,
+      'test-owner',
+      'test-repo',
+      payload,
     );
     expect(commits).toEqual(expectedCommits);
     expect(nock.pendingMocks().length).toBe(0);
   });
 
   it('should return empty array if API conditions not met and no payload commits', async () => {
-    const identicalShaPayloadSubset: PushEventPayloadSubset = {
+    const payload: PushEventPayloadSubset = {
       before: 'identicalSha',
       after: 'identicalSha',
       commits: [],
@@ -233,9 +220,9 @@ describe('PushEventCommitFetcher', () => {
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
-      identicalShaPayloadSubset,
+      'test-owner',
+      'test-repo',
+      payload,
     );
     expect(commits).toEqual([]);
     expect(nock.pendingMocks().length).toBe(0);

@@ -17,7 +17,7 @@ export class MergeGroupCommitFetcher
   /**
    * Fetches the head commit from a `merge_group` event payload subset.
    *
-   * @param _octokit - An initialized Octokit instance (not directly used).
+   * @param token - The GitHub token for API authentication.
    * @param _owner - The owner of the repository.
    * @param _repo - The name of the repository.
    * @param eventPayloadSubset - A subset of the GitHub `MergeGroupEvent`
@@ -28,11 +28,12 @@ export class MergeGroupCommitFetcher
    * required information is not present in the payload subset.
    */
   public async fetchCommits(
-    _octokit: OctokitInstance,
+    _token: string | OctokitInstance,
     _owner: string,
     _repo: string,
     eventPayloadSubset: MergeGroupEventPayloadSubset,
   ): Promise<CommitToLint[]> {
+    //const _octokit = typeof token === 'string' ? getOctokit(token) : token;
     const mergeGroup = eventPayloadSubset.merge_group;
     debug(
       `Merge group event payload subset merge_group object: ${JSON.stringify(mergeGroup)}`,

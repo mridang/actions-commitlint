@@ -1,58 +1,41 @@
-# Semantic Release - Upstream Major Version Blocker
+# Semantic Release GitHub Action
 
-A [semantic-release](https://github.com/semantic-release/semantic-release)
-plugin to prevent a new major version release if a specified upstream GitHub
-repository does not have a matching or higher major version SemVer tag on a
-given branch.
+This GitHub Action automates the process of running **semantic-release**. It
+ensures that your project is versioned correctly, generates changelogs,
+and publishes releases based on your commit messages.
 
-This plugin helps ensure that your project's major versions do not prematurely
-get ahead of a critical upstream dependency, maintaining versioning harmony and
-preventing accidental releases of software that may rely on unreleased
-upstream features.
+## Why
 
-### Why?
+Linting commit messages is crucial for maintaining a clean and understandable Git history, but integrating `commitlint` into CI workflows, especially for diverse project types, can present some challenges. This action aims to simplify that process.
 
-When your project (e.g., a client library, a microservice component) has a
-critical upstream dependency, its major version changes are often closely
-tied to the major versions of that dependency. For instance, you might be
-developing `your-project v2.1.0` which is compatible with
-`upstream-dependency v2.x.x`. If `your-project` is due for a major update
-to `v3.0.0`, this new version is likely intended to align with, or require
-features from, `upstream-dependency v3.0.0` (or newer).
+### Overcoming Shallow Checkout Limitations
 
-Releasing `your-project v3.0.0` _before_ `upstream-dependency` has itself
-reached at least major version 3 (e.g., `v3.0.0`) on its relevant branch
-can lead to several problems:
+Traditional `commitlint` setups, often run via `npx commitlint --from HEAD~N` or similar, require access to the Git history to determine the range of commits to lint. In CI environments, repositories are frequently cloned with a shallow depth (e.g., `actions/checkout@v4` with `fetch-depth: 1`) to save time and resources. This shallow history prevents `commitlint` from accessing the necessary commit range, causing it to fail or lint an incorrect set of commits.
 
-- **Integration Issues:** Your new `v3.0.0` might be incompatible with the
-  currently deployed `v2.x.x` of the upstream service because it expects
-  features or breaking changes from the (as yet unreleased) upstream
-  `v3.0.0`.
-- **User Confusion:** Users might upgrade `your-project` to `v3.0.0` expecting
-  it to work with the latest stable version of the upstream dependency,
-  only to discover it's designed for a future, unreleased upstream
-  version.
-- **Deployment Blockers:** You might intend for `your-project v3.0.0` to be
-  released in tandem with `upstream-dependency v3.0.0`. However, if your
-  project's release pipeline triggers first, your `v3.0.0` could be
-  published prematurely, leading to a version that doesn't work
-  correctly in the current ecosystem.
+This GitHub Action bypasses that limitation. Instead of relying on the local Git history, it intelligently uses the GitHub API (based on the event type like `push`, `pull_request`, or `merge_group`) to fetch only the metadata of the relevant commits that need to be linted. This means:
 
-This plugin provides a safeguard by checking a designated upstream GitHub
-repository and a specific branch within it. If your automated release process
-(via semantic-release) determines that a major version bump is due for your
-project, this plugin will first verify that the upstream dependency has
-already published a release tag indicating that major version (or a higher
-one) on its specified branch. If this condition is not met, the release of
-your project is blocked, preventing these potential issues.
+- You can continue to use shallow checkouts in your CI workflows, keeping them fast.
+- The action accurately lints the correct range of commits pertinent to the event (e.g., new commits in a PR, commits in a push).
+
+### Simplified Dependency Management for Declarative Configs
+
+When using `commitlint` with declarative configuration formats like `.commitlintrc.json` or `.commitlintrc.yaml`, any shared configurations (e.g., `extends: ['@commitlint/config-conventional']`) or plugins listed are npm packages that need to be installed in the environment where `commitlint` runs.
+
+- **For Node.js Projects**: Developers typically add these `commitlint` sharesable configs and plugins to their project's `package.json`. When `actions/setup-node` is used with caching, these dependencies are often available.
+- **For Non-Node.js Projects (or projects without these explicit deps)**: Setting up the environment to install these commitlint-specific dependencies can be cumbersome. Manually creating a `package.json` just to list and install `commitlint`'s `extends` and `plugins` can feel like an anti-pattern if the project itself isn't Node.js based or doesn't otherwise need a `package.json`.
+
+This action **automates the dependency management** for you:
+
+- If it detects a declarative configuration file (like `.json` or `.yaml`), it will parse the `extends` and `plugins` arrays.
+- It then programmatically creates a minimal `package.json` (or updates an existing one in the workspace) to include these packages as dependencies.
+- Finally, it runs `npm install` to ensure all necessary configurations and plugins are available before linting occurs.
+- This process is also **faster on subsequent runs** because the dynamically managed `package.json` and the installed `node_modules` (containing commitlint dependencies) can be effectively cached using `actions/cache` or the built-in caching of `actions/setup-node`.
+
+This automation removes the need for manual setup steps in your workflow, making it easier and more efficient to enforce commit message conventions across any type of repository.
 
 ## Installation
 
-Install using NPM by using the following command:
-
-```sh
-npm install --save @mridang/actions-commitlint
-```
+N/A
 
 ## Usage
 
@@ -90,39 +73,15 @@ module.exports = {
 
 ## Known Issues
 
-- **GitHub API Rate Limiting:** The plugin interacts with the GitHub API to
-  fetch release information (which includes tags) and potentially compare
-  commits. Unauthenticated API requests are subject to stricter rate limits.
-  To prevent disruptions, especially in CI environments or with frequent
-  usage, providing a `githubToken` is highly recommended. This enables the
-  more lenient rate limits associated with authenticated requests.
-- **Upstream Repository Tagging and Versioning:** This plugin relies on the
-  upstream repository adhering to [Semantic Versioning](https://semver.org/)
-  for its release tags. These SemVer tags should be associated with
-  published releases on the repository. If the upstream repository does not
-  consistently use SemVer for its release tags, the plugin may be unable to
-  accurately determine versioning information, such as a major version cap.
-- **Release Pagination:** The plugin currently fetches data for up to the 100
-  most recent releases from the upstream repository to identify relevant
-  SemVer tags. If the specific SemVer-tagged release crucial for the
-  plugin's logic (e.g., for version capping or comparison) is older than
-  these 100 most recent releases, it might not be detected.
-- **Token Permissions:** When a `githubToken` is provided, it must have
-  sufficient permissions to access the upstream repository's data. For
-  private repositories, the `repo` scope (granting full control of private
-  repositories) is typically required. For public repositories, while a token
-  might not be strictly necessary for basic read access, providing one for
-  authenticated requests (which helps with rate limits) means the token
-  must still have adequate permissions to read repository content, list
-  releases, and compare commits if these operations are performed by the
-  plugin.
+None
 
 ## Useful links
 
-- **[Semantic Release](https://github.com/semantic-release/semantic-release):**
-  The core automated version management and package publishing tool.
-- **[Semantic Versioning (SemVer)](https://semver.org/):** The versioning
-  specification that semantic-release adheres to.
+- [**Commitlint Documentation**](https://commitlint.js.org/): The official
+  documentation for `commitlint`, including rules and configuration options.
+- [**Conventional Commits**](https://www.conventionalcommits.org/): The commit
+  message convention that `commitlint` often enforces (e.g., via
+  `@commitlint/config-conventional`).
 
 ## Contributing
 

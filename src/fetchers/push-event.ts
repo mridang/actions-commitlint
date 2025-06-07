@@ -1,12 +1,13 @@
 /* eslint-disable testing-library/no-debugging-utils */
 import type {
-  OctokitInstance,
   CommitToLint,
   ICommitFetcher,
   ActualPushEventCommit,
   PushEventPayloadSubset,
+  OctokitInstance,
 } from '../types.js';
 import { debug, error as coreError } from '@actions/core';
+import { getOctokit } from '@actions/github';
 
 /**
  * Implements {@link ICommitFetcher} to retrieve commits associated with a
@@ -29,7 +30,7 @@ export class PushEventCommitFetcher
    * If the API call is not applicable, it will use the `commits` array from
    * the `eventPayloadSubset`.
    *
-   * @param octokit - An initialized Octokit instance.
+   * @param token - The GitHub token for API authentication.
    * @param owner - The owner of the repository.
    * @param repo - The name of the repository.
    * @param eventPayloadSubset - A subset of the GitHub `PushEvent` payload,
@@ -39,11 +40,12 @@ export class PushEventCommitFetcher
    * @throws If the `compareCommits` API call is attempted and fails.
    */
   public async fetchCommits(
-    octokit: OctokitInstance,
+    token: string | OctokitInstance,
     owner: string,
     repo: string,
     eventPayloadSubset: PushEventPayloadSubset,
   ): Promise<CommitToLint[]> {
+    const octokit = typeof token === 'string' ? getOctokit(token) : token;
     const { before, after, commits: payloadCommits } = eventPayloadSubset;
     debug(`Push event: before SHA: ${before}, after SHA: ${after}`);
 

@@ -5,28 +5,25 @@ export default {
     '@semantic-release/commit-analyzer',
     '@semantic-release/release-notes-generator',
     [
-      '@semantic-release/npm',
+      '@semantic-release/exec',
       {
-        npmPublish: true,
-        pkgRoot: '.',
-        tarballDir: '.',
-        access: 'public',
+        prepareCmd: 'npm run build',
       },
     ],
     [
       '@semantic-release/github',
       {
-        assets: [{ path: '*.tgz', label: 'Package' }],
+        assets: ['action.yml', 'dist/**'],
       },
     ],
     [
       '@semantic-release/git',
       {
-        assets: ['package.json', 'package-lock.json'],
+        assets: ['package.json', 'package-lock.json', 'dist'],
         message:
           'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
       },
     ],
   ],
-  repositoryUrl: "git+https://github.com/mridang/actions-commitlint.git"
+  repositoryUrl: 'git+https://github.com/mridang/action-semantic-release.git',
 };

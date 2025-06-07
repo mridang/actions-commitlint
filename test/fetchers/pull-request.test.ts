@@ -9,8 +9,6 @@ import type {
 } from '../../src/types.js';
 import { buildAxiosFetch } from './utils/nockios.js';
 
-const GITHUB_API_URL_FOR_TESTS = 'https://api.github.com';
-
 beforeAll(() => {
   nock.disableNetConnect();
 });
@@ -24,15 +22,12 @@ afterAll(() => {
 });
 
 describe('PullRequestCommitFetcher', () => {
-  const owner = 'test-owner';
-  const repo = 'test-repo';
-  const pullNumber = 123;
   let octokit: OctokitInstance;
   const fetcher = new PullRequestCommitFetcher();
 
   beforeEach(() => {
     octokit = getOctokit('fake-token', {
-      baseUrl: GITHUB_API_URL_FOR_TESTS,
+      baseUrl: 'https://api.github.com',
       request: {
         fetch: buildAxiosFetch(axios.create({})),
       },
@@ -40,9 +35,9 @@ describe('PullRequestCommitFetcher', () => {
   });
 
   it('should fetch and map commits correctly when API returns data', async () => {
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/pulls/${pullNumber}/commits`)
+      .get(`/repos/test-owner/test-repo/pulls/${123}/commits`)
       .query(true)
       .reply(200, [
         {
@@ -64,16 +59,14 @@ describe('PullRequestCommitFetcher', () => {
 
     const dummyPayloadSubset: PullRequestEventPayloadSubset = {
       action: 'opened',
-      number: pullNumber,
+      number: 123,
     };
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
+      'test-owner',
+      'test-repo',
       dummyPayloadSubset,
-      undefined,
-      pullNumber,
     );
 
     expect(commits).toEqual(expectedCommits);
@@ -81,24 +74,22 @@ describe('PullRequestCommitFetcher', () => {
   });
 
   it('should return an empty array if the API returns no commits', async () => {
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/pulls/${pullNumber}/commits`)
+      .get(`/repos/test-owner/test-repo/pulls/${123}/commits`)
       .query(true)
       .reply(200, []);
 
     const dummyPayloadSubset: PullRequestEventPayloadSubset = {
       action: 'opened',
-      number: pullNumber,
+      number: 123,
     };
 
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
+      'test-owner',
+      'test-repo',
       dummyPayloadSubset,
-      undefined,
-      pullNumber,
     );
 
     expect(commits).toEqual([]);
@@ -112,11 +103,9 @@ describe('PullRequestCommitFetcher', () => {
     };
     const commits = await fetcher.fetchCommits(
       octokit,
-      owner,
-      repo,
+      'test-owner',
+      'test-repo',
       dummyPayloadSubset,
-      undefined,
-      undefined,
     );
 
     expect(commits).toEqual([]);
@@ -124,25 +113,23 @@ describe('PullRequestCommitFetcher', () => {
   });
 
   it('should throw an error if the GitHub API call fails', async () => {
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/pulls/${pullNumber}/commits`)
+      .get(`/repos/test-owner/test-repo/pulls/${123}/commits`)
       .query(true)
       .reply(500, { message: 'Internal Server Error' });
 
     const dummyPayloadSubset: PullRequestEventPayloadSubset = {
       action: 'opened',
-      number: pullNumber,
+      number: 123,
     };
 
     await expect(
       fetcher.fetchCommits(
         octokit,
-        owner,
-        repo,
+        'test-owner',
+        'test-repo',
         dummyPayloadSubset,
-        undefined,
-        pullNumber,
       ),
     ).rejects.toThrow();
 
@@ -150,25 +137,23 @@ describe('PullRequestCommitFetcher', () => {
   });
 
   it('should throw an error if API returns non-array data for commits', async () => {
-    nock(GITHUB_API_URL_FOR_TESTS)
+    nock('https://api.github.com')
       .matchHeader('accept', /application\/vnd\.github\.v3\+json/i)
-      .get(`/repos/${owner}/${repo}/pulls/${pullNumber}/commits`)
+      .get(`/repos/test-owner/test-repo/pulls/${123}/commits`)
       .query(true)
       .reply(200, { not_an_array: 'unexpected_data' });
 
     const dummyPayloadSubset: PullRequestEventPayloadSubset = {
       action: 'opened',
-      number: pullNumber,
+      number: 123,
     };
 
     await expect(
       fetcher.fetchCommits(
         octokit,
-        owner,
-        repo,
+        'test-owner',
+        'test-repo',
         dummyPayloadSubset,
-        undefined,
-        pullNumber,
       ),
     ).rejects.toThrow();
 
