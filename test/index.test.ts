@@ -6,7 +6,7 @@ import { jest } from '@jest/globals';
 // noinspection ES6PreferShortImport
 import { run } from '../src/index.js';
 
-describe('Commitlint Action Integration Tests (No Mocks/Spies)', () => {
+describe('Commitlint Action Integration Tests', () => {
   const testDirRoot = pathJoin(
     os.tmpdir(),
     'commitlint_action_integration_tests_v3',

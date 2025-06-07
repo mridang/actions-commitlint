@@ -1,26 +1,9 @@
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { cosmiconfig } from 'cosmiconfig';
 import { createLoaders } from '../src/loaders.js';
 import * as YAML from 'yaml';
-
-function withTempDir(fn: (ctx: { tmp: string }) => void | Promise<void>) {
-  return async () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'test-'));
-    try {
-      await fn({ tmp });
-    } finally {
-      rmSync(tmp, { recursive: true, force: true });
-    }
-  };
-}
+import { withTempDir } from './helpers/with-temp-dir.js';
 
 const baseConfig = {
   branches: ['main'],

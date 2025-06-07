@@ -8,7 +8,6 @@ import { stringify as stringifyYaml } from 'yaml';
 
 describe('Linter', () => {
   let testDir: string;
-  const dummyHelpUrl = 'https://example.com/commit-help';
   const projectRootPath = process.cwd();
 
   beforeEach(() => {
@@ -81,7 +80,7 @@ describe('Linter', () => {
             { hash: 'def2', message: 'fix: a small bug fix' },
           ],
           specifiedConfigPath,
-          dummyHelpUrl,
+          'https://example.com/commit-help',
           projectRootPath,
         );
         const result: LinterResult = await linter.lint();
@@ -124,7 +123,7 @@ describe('Linter', () => {
             { hash: 'def2', message: 'oops: unknown type' },
           ],
           specifiedConfigPath,
-          dummyHelpUrl,
+          'https://example.com/commit-help',
           projectRootPath,
         );
         const result: LinterResult = await linter.lint();
@@ -179,7 +178,7 @@ describe('Linter', () => {
             },
           ],
           specifiedConfigPath,
-          dummyHelpUrl,
+          'https://example.com/commit-help',
           projectRootPath,
         );
         const result: LinterResult = await linter.lint();
@@ -217,7 +216,7 @@ describe('Linter', () => {
         { hash: 'jkl4', message: 'Test: an invalid commit by default rules' },
       ],
       specifiedConfigPath,
-      dummyHelpUrl,
+      'https://example.com/commit-help',
       projectRootPath,
     );
     const result: LinterResult = await linter.lint();
@@ -255,7 +254,12 @@ describe('Linter', () => {
   });
 
   it('should return an empty-like result if no commits are provided', async () => {
-    const linter = new Linter([], null, dummyHelpUrl, projectRootPath);
+    const linter = new Linter(
+      [],
+      null,
+      'https://example.com/commit-help',
+      projectRootPath,
+    );
     const result: LinterResult = await linter.lint();
 
     expect(result.lintedCommits).toEqual([]);

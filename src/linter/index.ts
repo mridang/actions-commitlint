@@ -123,7 +123,6 @@ export class Linter {
         loadOptions,
       );
     }
-    debug(`Loaded config object: ${JSON.stringify(rawLoadedConfig, null, 2)}`);
     return rawLoadedConfig as unknown as LoadedCommitlintConfig;
   }
 
