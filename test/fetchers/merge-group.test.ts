@@ -75,20 +75,18 @@ describe('MergeGroupCommitFetcher', () => {
       'feat: Merge feature branch into main via merge queue',
     );
 
-    const expectedCommits: CommitToLint[] = [
-      {
-        hash: 'mergegroupheadsha123',
-        message: 'feat: Merge feature branch into main via merge queue',
-      },
-    ];
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
       eventPayloadSubset,
     );
-    expect(commits).toEqual(expectedCommits);
+    expect(commits).toEqual([
+      {
+        hash: 'mergegroupheadsha123',
+        message: 'feat: Merge feature branch into main via merge queue',
+      },
+    ]);
     expect(nock.pendingMocks().length).toBe(0);
   });
 

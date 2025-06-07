@@ -91,18 +91,16 @@ describe('PushEventCommitFetcher', () => {
       .query(true)
       .reply(200, apiMockResponse);
 
-    const expectedCommits: CommitToLint[] = [
-      { hash: 'commit1', message: 'Initial commit on new branch' },
-      { hash: 'commit2', message: 'Second commit on new branch' },
-    ];
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
       payload,
     );
-    expect(commits).toEqual(expectedCommits);
+    expect(commits).toEqual([
+      { hash: 'commit1', message: 'Initial commit on new branch' },
+      { hash: 'commit2', message: 'Second commit on new branch' },
+    ]);
     expect(nock.isDone()).toBe(true);
   });
 
@@ -124,18 +122,16 @@ describe('PushEventCommitFetcher', () => {
         ],
       });
 
-    const expectedCommits: CommitToLint[] = [
-      { hash: 'compareCommit1', message: 'Update A' },
-      { hash: 'compareCommit2', message: 'Fix B' },
-    ];
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
       payload,
     );
-    expect(commits).toEqual(expectedCommits);
+    expect(commits).toEqual([
+      { hash: 'compareCommit1', message: 'Update A' },
+      { hash: 'compareCommit2', message: 'Fix B' },
+    ]);
     expect(nock.isDone()).toBe(true);
   });
 
@@ -197,17 +193,15 @@ describe('PushEventCommitFetcher', () => {
         ),
       ],
     };
-    const expectedCommits: CommitToLint[] = [
-      { hash: 'forcePushCommit', message: 'Force pushed commit' },
-    ];
-
     const commits = await fetcher.fetchCommits(
       octokit,
       'test-owner',
       'test-repo',
       payload,
     );
-    expect(commits).toEqual(expectedCommits);
+    expect(commits).toEqual([
+      { hash: 'forcePushCommit', message: 'Force pushed commit' },
+    ]);
     expect(nock.pendingMocks().length).toBe(0);
   });
 

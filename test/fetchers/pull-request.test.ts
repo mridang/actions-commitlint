@@ -52,11 +52,6 @@ describe('PullRequestCommitFetcher', () => {
         },
       ]);
 
-    const expectedCommits: CommitToLint[] = [
-      { hash: 'sha123', message: 'feat: Implement feature X' },
-      { hash: 'sha456', message: 'fix: Correct bug Y' },
-    ];
-
     const dummyPayloadSubset: PullRequestEventPayloadSubset = {
       action: 'opened',
       number: 123,
@@ -69,7 +64,10 @@ describe('PullRequestCommitFetcher', () => {
       dummyPayloadSubset,
     );
 
-    expect(commits).toEqual(expectedCommits);
+    expect(commits).toEqual([
+      { hash: 'sha123', message: 'feat: Implement feature X' },
+      { hash: 'sha456', message: 'fix: Correct bug Y' },
+    ]);
     expect(nock.isDone()).toBe(true);
   });
 
