@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 import type {
   LintOptions,
   LintOutcome,
@@ -101,27 +102,9 @@ export interface ICommitFetcher<TEventPayloadSubset = unknown> {
 }
 
 /**
- * Interface for configuration handling strategies.
- */
-export interface ICommitlintStrategy {
-  /**
-   * Executes the strategy to prepare the environment for commitlint.
-   * @param configFilePath - The absolute path to the configuration file.
-   * @param workingDirectory - The directory where operations should occur.
-   * @returns A promise that resolves when the strategy execution is complete.
-   */
-  execute(configFilePath: string, workingDirectory: string): Promise<void>;
-}
-
-/**
  * Derived type for ParserOptions.
  */
 export type ActualParserOptions = NonNullable<LintOptions['parserOpts']>;
-
-/**
- * Derived type for LintProblem.
- */
-export type ActualLintProblem = LintOutcome['errors'][number];
 
 /**
  * Defines the structure of the configuration object after being processed by
@@ -138,44 +121,6 @@ export interface LoadedCommitlintConfig {
   plugins: PluginRecords;
   helpUrl: string;
   prompt: UserPromptConfig;
-}
-
-/**
- * Represents the raw content of a declarative configuration file.
- */
-export interface RawDeclarativeConfig {
-  extends?: string | string[];
-  plugins?: (string | [string, unknown?])[];
-  [key: string]: unknown;
-}
-
-/**
- * Defines the structure of the output for a single linted commit.
- */
-export interface OutputResult {
-  hash: string;
-  message: string;
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
-/**
- * Result from cosmiconfig search.
- */
-export interface CosmiconfigSearchResult {
-  config: unknown;
-  filepath: string;
-  isEmpty?: boolean;
-}
-
-/**
- * Describes the type of configuration file.
- */
-export enum ConfigFileType {
-  Declarative = 'declarative',
-  Imperative = 'imperative',
-  Unknown = 'unknown',
 }
 
 /**

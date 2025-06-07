@@ -7,7 +7,7 @@ import {
   warning,
 } from '@actions/core';
 import { cosmiconfig } from 'cosmiconfig';
-import type { CommitToLint } from './types.js';
+import type { CommitToLint, ICommitFetcher } from './types.js';
 
 import { Linter } from './linter/index.js';
 import { createLoaders } from './loaders.js';
@@ -151,12 +151,8 @@ async function runLintingProcess(
     if (failOnErrs) {
       setFailed(`Commit linter failed:\n\n${result.formattedResults}`);
     } else {
-      warning(
-        `Commit messages have errors, but 'failOnErrors' is false. Passing with a warning. Results:\n\n${result.formattedResults}`,
-      );
-      info(
-        'Action passed despite errors due to failOnErrors=false setting. ✅',
-      );
+      warning(`Commit messages have errors, but 'fail-on-errors' is false.`);
+      info("Action passed despite errors since 'fail-on-errors' is false.");
     }
   } else if (result.hasOnlyWarnings()) {
     const warningsMessage = `Commit messages have warnings (but no errors):\n\n${result.formattedResults}`;
@@ -181,7 +177,7 @@ async function runLintingProcess(
         (c) => c.lintResult.valid && c.lintResult.warnings.length === 0,
       )
     ) {
-      info('All commit messages are lint free! 🎉');
+      info('All commit messages are lint free!');
     } else {
       info(`Linting complete`);
     }
@@ -207,7 +203,18 @@ function setFailed(message: string | Error): void {
   }
 }
 
-export async function run(ghCtx = new Context()): Promise<string | void> {
+/**
+ * The main entry point for the action.
+ * @param ghCtx The GitHub context, defaults to a new Context().
+ * @param commitFetcherFactory An optional factory function that returns a
+ * commit fetcher. Used for testing. Defaults to the real implementation.
+ */
+export async function run(
+  ghCtx = new Context(),
+  commitFetcherFactory: (event: string) => ICommitFetcher | null = (
+    event: string,
+  ) => getCommitFetcher(event),
+): Promise<string | void> {
   try {
     const helpUrl = getHelpURL();
     const commitDepth = getCommitDepth();
@@ -235,7 +242,7 @@ export async function run(ghCtx = new Context()): Promise<string | void> {
       throw new Error(`Configuration file "${result.filepath}" is empty.`);
     } else {
       info(`Fetching commits for event: ${ghCtx.eventName}`);
-      const commitFetcher = getCommitFetcher(ghCtx.eventName);
+      const commitFetcher = commitFetcherFactory(ghCtx.eventName);
       if (commitFetcher) {
         const eventCommits = await commitFetcher.fetchCommits(
           githubToken,
