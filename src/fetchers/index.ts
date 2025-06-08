@@ -13,18 +13,16 @@ import { ICommitFetcher } from '../types.js';
 export default function getCommitFetcher(
   eventName: string | undefined,
 ): ICommitFetcher | null {
-  if (eventName === 'merge_group') {
-    return new MergeGroupCommitFetcher();
+  switch (eventName) {
+    case 'merge_group':
+      return new MergeGroupCommitFetcher();
+    case 'pull_request':
+    case 'pull_request_target':
+      return new PullRequestCommitFetcher();
+    case 'push':
+      return new PushEventCommitFetcher();
+    default:
+      info(`No specific commit fetcher for event: ${eventName}.`);
+      return null;
   }
-  if (
-    eventName &&
-    ['pull_request', 'pull_request_target'].includes(eventName)
-  ) {
-    return new PullRequestCommitFetcher();
-  }
-  if (eventName === 'push') {
-    return new PushEventCommitFetcher();
-  }
-  info(`No specific commit fetcher for event: ${eventName}.`);
-  return null;
 }

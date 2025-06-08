@@ -265,10 +265,10 @@ export async function run(
           );
           endGroup();
         } else {
-          warning('No commits found to lint.');
+          setFailed('No commits found to lint.');
         }
       } else {
-        warning(`No suitable commit fetcher found for event.`);
+        setFailed(`No suitable commit fetcher found for event.`);
       }
     }
   } catch (err) {

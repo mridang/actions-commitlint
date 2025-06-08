@@ -1,63 +1,63 @@
 name: Commit Linter
 
 description: |
-    Lints commit messages based on commitlint configurations.
-    It can be configured to check commit depth, and handle warnings
-    and errors in a flexible manner.
+  Lints commit messages based on commitlint configurations.
+  It can be configured to check commit depth, and handle warnings
+  and errors in a flexible manner.
 
 author: mridang
 branding:
-    color: blue
+  color: blue
 
 inputs:
-    github-token:
-        description: >
-            GitHub token used to authenticate API requests. Required for
-            fetching commit information. Use `secrets.GITHUB_TOKEN` or a PAT
-            with appropriate permissions.
-        required: true
+  github-token:
+    description: >
+      GitHub token used to authenticate API requests. Required for
+      fetching commit information. Use `secrets.GITHUB_TOKEN` or a PAT
+      with appropriate permissions.
+    required: true
 
-    commit-depth:
-        description: >
-            The maximum number of commits to lint from the push. If empty, all
-            commits in the event will be linted.
-        required: false
+  commit-depth:
+    description: >
+      The maximum number of commits to lint from the push. If empty, all
+      commits in the event will be linted.
+    required: false
 
-    working-directory:
-        description: >
-            The directory to search for commitlint configuration files and to run
-            the linter from.
-        required: false
-        default: '.'
+  working-directory:
+    description: >
+      The directory to search for commitlint configuration files and to run
+      the linter from.
+    required: false
+    default: '.'
 
-    allow-force-install:
-        description: >
-            If 'true', allows overwriting an existing package.json and forces
-            npm to install dependencies using '--force' to resolve conflicting
-            peer dependencies. Use with caution.
-        required: false
-        default: 'false'
+  allow-force-install:
+    description: >
+      If 'true', allows overwriting an existing package.json and forces
+      npm to install dependencies using '--force' to resolve conflicting
+      peer dependencies. Use with caution.
+    required: false
+    default: 'false'
 
-    fail-on-warnings:
-        description: >
-            If 'true', the action will fail if any linting warnings are found.
-            Defaults to 'false'.
-        required: false
-        default: 'false'
+  fail-on-warnings:
+    description: >
+      If 'true', the action will fail if any linting warnings are found.
+      Defaults to 'false'.
+    required: false
+    default: 'false'
 
-    fail-on-errors:
-        description: >
-            If 'false', the action will pass with a warning message even if
-            linting errors are found. Defaults to 'true'.
-        required: false
-        default: 'true'
+  fail-on-errors:
+    description: >
+      If 'false', the action will pass with a warning message even if
+      linting errors are found. Defaults to 'true'.
+    required: false
+    default: 'true'
 
-    help-url:
-        description: >
-            A URL to display in linting error messages, pointing users to your
-            commit message guidelines.
-        required: false
+  help-url:
+    description: >
+      A URL to display in linting error messages, pointing users to your
+      commit message guidelines.
+    required: false
 
 runs:
-    using: node20
-    main: dist/main.cjs
+  using: node20
+  main: dist/main.cjs
