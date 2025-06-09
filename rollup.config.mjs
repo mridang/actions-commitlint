@@ -9,21 +9,27 @@ import { readFileSync } from 'node:fs';
 const badJson = r('node_modules/@pnpm/npm-conf/lib/tsconfig.make-out.json');
 
 const inlinePackageJsonPlugin = {
-  name: 'inline-package-json',
+  name: 'inline-json', // Renamed for broader scope
   transform(code, id) {
+    // Only process files within node_modules
     if (!id.includes('node_modules')) {
       return null;
     }
 
-    const requirePattern = /require\((['"`])(.+?package\.json)\1\)/g;
+    // Regex to find `require('.../package.json')` or `require('.../commitlint.schema.json')`
+    // The `(?:...)` creates a non-capturing group for the OR condition.
+    const requirePattern = /require\((['"`])(.+?(?:package\.json|commitlint\.schema\.json))\1\)/g;
 
     const newCode = code.replace(
       requirePattern,
       (match, quote, requiredPath) => {
         try {
-          const pkgPath = r(dirname(id), requiredPath);
-          return readFileSync(pkgPath, 'utf-8');
+          // Resolve the full path to the required JSON file relative to the current module
+          const filePath = r(dirname(id), requiredPath);
+          // Read the content of the JSON file
+          return readFileSync(filePath, 'utf-8');
         } catch (e) {
+          // If inlining fails, warn the user and return the original match
           this.warn(
             `Failed to inline '${requiredPath}' for ${id}: ${e.message}`,
           );
@@ -34,7 +40,7 @@ const inlinePackageJsonPlugin = {
 
     return {
       code: newCode,
-      map: null,
+      map: null, // No source map needed for this transformation as it's a simple text replacement
     };
   },
 };
