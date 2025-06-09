@@ -1,13 +1,9 @@
 /* eslint-disable testing-library/no-debugging-utils */
 import { existsSync as fsExistsSync } from 'node:fs';
-import { info } from '@actions/core';
+import { debug, info } from '@actions/core';
 import lintLib from '@commitlint/lint';
 import loadConfig from '@commitlint/load';
-import type {
-  LintOptions,
-  LintOutcome,
-  QualifiedRules,
-} from '@commitlint/types';
+import type { LintOutcome, QualifiedRules } from '@commitlint/types';
 import type {
   ActualParserOptions,
   CommitToLint,
@@ -130,25 +126,25 @@ export class Linter {
    * detailed outcome of the linting for all processed commits.
    */
   public async lint(): Promise<Results> {
+    debug(`Current working directory: ${process.cwd()}`);
     const loadedConfig = await this.loadEffectiveConfig();
-
-    const parserOptsValue = loadedConfig.parserPreset?.parserOpts as
-      | ActualParserOptions
-      | undefined;
-    const lintingOpts: LintOptions = {
-      parserOpts: parserOptsValue ?? {},
-      plugins: loadedConfig.plugins ?? {},
-      ignores: loadedConfig.ignores ?? [],
-      defaultIgnores: loadedConfig.defaultIgnores ?? true,
-      helpUrl: this.helpUrlInput || loadedConfig.helpUrl,
-    };
 
     const lintingPromises = this.commitsToLint.map(async (commit) => {
       const lintResult = await lintLib(
         commit.message,
         loadedConfig.rules as QualifiedRules,
-        lintingOpts,
+        {
+          parserOpts:
+            (loadedConfig.parserPreset?.parserOpts as
+              | ActualParserOptions
+              | undefined) ?? {},
+          plugins: loadedConfig.plugins ?? {},
+          ignores: loadedConfig.ignores ?? [],
+          defaultIgnores: loadedConfig.defaultIgnores ?? true,
+          helpUrl: this.helpUrlInput || loadedConfig.helpUrl,
+        },
       );
+
       return {
         ...lintResult,
         hash: commit.hash,
