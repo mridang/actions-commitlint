@@ -101,6 +101,7 @@ export class Linter {
     if (this.configPathInput) {
       if (fsExistsSync(this.configPathInput)) {
         info(`Loading commitlint configuration from: ${this.configPathInput}`);
+        debug(`Using working directory: ${process.cwd()}`);
         return (await loadConfig(
           {},
           { cwd: this.projectBasePath, file: this.configPathInput },
@@ -126,7 +127,6 @@ export class Linter {
    * detailed outcome of the linting for all processed commits.
    */
   public async lint(): Promise<Results> {
-    debug(`Current working directory: ${process.cwd()}`);
     const loadedConfig = await this.loadEffectiveConfig();
 
     const lintingPromises = this.commitsToLint.map(async (commit) => {

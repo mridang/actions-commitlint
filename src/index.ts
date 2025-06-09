@@ -1,4 +1,6 @@
+/* eslint-disable */
 import {
+  debug,
   endGroup,
   getInput,
   info,
@@ -160,6 +162,7 @@ export async function run(
     const githubToken = getGithubToken();
     const workingDirectory = getWorkingDirectory();
 
+    debug(`Current working directory: ${process.cwd()}`);
     const explorer = cosmiconfig('commitlint', {
       loaders: createLoaders(getAllowForceInstall()),
     });
