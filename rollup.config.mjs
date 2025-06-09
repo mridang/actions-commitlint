@@ -18,7 +18,8 @@ const inlinePackageJsonPlugin = {
 
     // Regex to find `require('.../package.json')` or `require('.../commitlint.schema.json')`
     // The `(?:...)` creates a non-capturing group for the OR condition.
-    const requirePattern = /require\((['"`])(.+?(?:package\.json|commitlint\.schema\.json))\1\)/g;
+    const requirePattern =
+      /require\((['"`])(.+?(?:package\.json|commitlint\.schema\.json))\1\)/g;
 
     const newCode = code.replace(
       requirePattern,
