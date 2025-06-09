@@ -9,9 +9,9 @@ import type {
   QualifiedRules,
 } from '@commitlint/types';
 import type {
+  ActualParserOptions,
   CommitToLint,
   LoadedCommitlintConfig,
-  ActualParserOptions,
 } from '../types.js';
 import { Results } from './result.js';
 
@@ -102,14 +102,12 @@ export class Linter {
    * @private
    */
   private async loadEffectiveConfig(): Promise<LoadedCommitlintConfig> {
-    const loadOptions = { cwd: this.projectBasePath };
-
     if (this.configPathInput) {
       if (fsExistsSync(this.configPathInput)) {
         info(`Loading commitlint configuration from: ${this.configPathInput}`);
         return (await loadConfig(
           {},
-          { ...loadOptions, file: this.configPathInput },
+          { cwd: this.projectBasePath, file: this.configPathInput },
         )) as LoadedCommitlintConfig;
       } else {
         throw new Error(

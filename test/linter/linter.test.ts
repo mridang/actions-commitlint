@@ -8,9 +8,6 @@ import { Results } from '../../src/linter/result.js';
 import { withTempDir } from '../helpers/with-temp-dir.js';
 
 describe('Linter', () => {
-  const projectRootPath = process.cwd();
-
-  // A single, comprehensive config used for all tests in this file
   const comprehensiveConfig = {
     rules: {
       'type-enum': [RuleConfigSeverity.Error, 'always', ['feat', 'fix']],
@@ -20,7 +17,6 @@ describe('Linter', () => {
     },
   };
 
-  // Helper functions to create config files
   const createCommitlintrcJson = (
     dir: string,
     configContent: object,
@@ -64,9 +60,9 @@ describe('Linter', () => {
     ({ createConfigFn, filename }) => {
       it(
         'should load the config and lint valid commits successfully',
-        withTempDir(async ({ tmp }) => {
+        withTempDir(async ({ tmp: projectDir }) => {
           const specifiedConfigPath = createConfigFn(
-            tmp,
+            projectDir,
             comprehensiveConfig,
             filename,
           );
@@ -77,7 +73,7 @@ describe('Linter', () => {
             ],
             specifiedConfigPath,
             'https://example.com/commit-help',
-            projectRootPath,
+            projectDir,
           );
           const result = await linter.lint();
 
@@ -104,9 +100,9 @@ describe('Linter', () => {
 
       it(
         'should identify errors for invalid commits',
-        withTempDir(async ({ tmp }) => {
+        withTempDir(async ({ tmp: projectDir }) => {
           const specifiedConfigPath = createConfigFn(
-            tmp,
+            projectDir,
             comprehensiveConfig,
             filename,
           );
@@ -120,7 +116,7 @@ describe('Linter', () => {
             ],
             specifiedConfigPath,
             'https://example.com/commit-help',
-            projectRootPath,
+            projectDir,
           );
           const result = await linter.lint();
 
@@ -161,9 +157,9 @@ describe('Linter', () => {
 
       it(
         'should handle a commit with only warnings correctly',
-        withTempDir(async ({ tmp }) => {
+        withTempDir(async ({ tmp: projectDir }) => {
           const specifiedConfigPath = createConfigFn(
-            tmp,
+            projectDir,
             comprehensiveConfig,
             filename,
           );
@@ -177,7 +173,7 @@ describe('Linter', () => {
             ],
             specifiedConfigPath,
             'https://example.com/commit-help',
-            projectRootPath,
+            projectDir,
           );
           const result = await linter.lint();
 
@@ -207,12 +203,12 @@ describe('Linter', () => {
 
   it(
     'should throw an error if a specified config file is not found',
-    withTempDir(async ({ tmp }) => {
+    withTempDir(async ({ tmp: projectDir }) => {
       const specifiedConfigPath = pathJoin(
-        tmp,
+        projectDir,
         'nonexistent.commitlintrc.json',
       );
-      const linter = new Linter([], specifiedConfigPath, '', projectRootPath);
+      const linter = new Linter([], specifiedConfigPath, '', projectDir);
 
       await expect(linter.lint()).rejects.toThrow(
         `Specified configuration file was not found at: ${specifiedConfigPath}`,
@@ -222,9 +218,9 @@ describe('Linter', () => {
 
   it(
     'should return a valid Results object for an empty list of commits',
-    withTempDir(async ({ tmp }) => {
+    withTempDir(async ({ tmp: projectDir }) => {
       const configPath = createCommitlintrcJson(
-        tmp,
+        projectDir,
         comprehensiveConfig,
         '.commitlintrc.json',
       );
@@ -232,7 +228,7 @@ describe('Linter', () => {
         [],
         configPath,
         'https://example.com/commit-help',
-        projectRootPath,
+        projectDir,
       );
       const result = await linter.lint();
 

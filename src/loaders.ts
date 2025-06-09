@@ -17,63 +17,71 @@ import { defaultLoaders } from 'cosmiconfig';
  */
 function declarativeLoader(loader: Loader): Loader {
   return async (filepath, content) => {
-    debug(`Loading declarative config: ${filepath}`);
     const config = await loader(filepath, content);
-    const cwd = dirname(filepath);
 
-    if (typeof config === 'object' && config !== null) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawPlugins = (config as any).plugins;
-      if (Array.isArray(rawPlugins)) {
-        const plugins = rawPlugins
-          .map((entry: unknown) => {
-            if (typeof entry === 'string') {
-              return entry.trim();
-            } else if (Array.isArray(entry) && typeof entry[0] === 'string') {
-              return entry[0].trim();
+    if (typeof config !== 'object' || config === null) {
+      throw new Error('Expected declarative config object');
+    } else {
+      const cwd = dirname(filepath);
+
+      const dependencies = ['plugins', 'extends']
+        .flatMap((k) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const v = (config as any)[k];
+
+          if (typeof v === 'string') {
+            return [v.trim()];
+          } else {
+            if (Array.isArray(v)) {
+              return v
+                .map((x) => {
+                  return Array.isArray(x) ? x[0] : x;
+                })
+                .filter((x): x is string => typeof x === 'string')
+                .map((x) => x.trim());
             } else {
-              return null;
+              return [];
             }
-          })
-          .filter((p): p is string => !!p);
+          }
+        })
+        .map((pkg) => {
+          debug(`Detected package "${pkg}"`);
+          return pkg;
+        })
+        .reduce<Record<string, string>>((acc, entry) => {
+          const at = entry.lastIndexOf('@');
+          const name =
+            at > 0 && entry.startsWith('@') ? entry.slice(0, at) : entry;
 
-        if (plugins.length > 0) {
-          const pkgPath = join(cwd, 'package.json');
-          if (existsSync(pkgPath)) {
-            throw new Error(
-              `Cannot create package.json in ${cwd}, file exists.`,
-            );
+          if (!acc[name]) {
+            if (at > 0 && entry.startsWith('@')) {
+              acc[name] = entry.slice(at + 1);
+            } else {
+              acc[name] = '*';
+            }
           }
 
-          const dependencies = Object.fromEntries(
-            plugins.map((entry) => {
-              const atIndex = entry.lastIndexOf('@');
-              const [name, version] =
-                atIndex > 0 && entry.startsWith('@')
-                  ? [entry.slice(0, atIndex), entry.slice(atIndex + 1)]
-                  : [entry, '*'];
-              return [name, version];
-            }),
-          );
+          return acc;
+        }, {});
 
-          debug(`Writing temporary package.json to ${pkgPath}`);
+      if (Object.entries(dependencies).length > 0) {
+        const pkgPath = join(cwd, 'package.json');
+        if (existsSync(pkgPath)) {
+          throw new Error(`File package.json in ${cwd} already exists.`);
+        } else {
           writeFileSync(
             pkgPath,
             JSON.stringify(
-              {
-                name: 'semantic-release-temp',
-                version: '1.0.0',
-                dependencies,
-              },
+              { name: 'temp', devDependencies: dependencies },
               null,
               2,
             ),
           );
         }
       }
-    }
 
-    return config;
+      return config;
+    }
   };
 }
 

@@ -59,8 +59,11 @@ describe('Commitlint Action Integration Tests', () => {
     {
       description: 'Declarative config, valid commit, should pass',
       configFileName: '.commitlintrc.json',
-      configFileContent: { rules: { 'type-enum': [2, 'always', ['feat']] } },
-      createPkgJson: true,
+      configFileContent: {
+        extends: ['@commitlint/config-conventional'],
+        rules: { 'type-enum': [2, 'always', ['feat']] },
+      },
+      createPkgJson: false,
       inputs: { 'fail-on-errors': 'true' },
       event: { name: 'push', payload: {} },
       commits: [{ sha: 'valid1', message: 'feat: a valid commit' }],
@@ -69,8 +72,12 @@ describe('Commitlint Action Integration Tests', () => {
     {
       description: 'Declarative config, invalid commit, should fail',
       configFileName: '.commitlintrc.json',
-      configFileContent: { rules: { 'type-enum': [2, 'always', ['fix']] } },
-      createPkgJson: true,
+      configFileContent: {
+        extends: ['@commitlint/config-conventional'],
+        plugins: ['@mridang/commitlint-plugin-conditionals'],
+        rules: { 'type-enum': [2, 'always', ['fix']] },
+      },
+      createPkgJson: false,
       inputs: { 'fail-on-errors': 'true' },
       event: { name: 'push', payload: {} },
       commits: [{ sha: 'err1', message: 'feat: an invalid type' }],
