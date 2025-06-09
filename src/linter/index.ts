@@ -92,16 +92,13 @@ export class Linter {
   }
 
   /**
-   * Loads the effective commitlint configuration. If an explicit config path
-   * is provided and exists, it will be loaded. Otherwise, this method
-   * attempts to auto-detect a configuration file (e.g., `.commitlintrc.js`)
-   * from the project's base path. It defaults to
-   * `@commitlint/config-conventional` if no other config is found.
+   * Loads the effective commitlint configuration from the specified path.
+   * A valid path to an existing configuration file must be provided.
    *
    * @returns A promise that resolves to the loaded and parsed commitlint
    * configuration object.
-   * @throws An error if `configPathInput` is specified but the file does
-   * not exist at that path.
+   * @throws An error if `configPathInput` is not provided or if the file
+   * does not exist at the specified path.
    * @private
    */
   private async loadEffectiveConfig(): Promise<LoadedCommitlintConfig> {
@@ -119,15 +116,11 @@ export class Linter {
           `Specified configuration file was not found at: ${this.configPathInput}`,
         );
       }
+    } else {
+      throw new Error(
+        `No configuration path was provided. A path to a valid commitlint configuration file is required.`,
+      );
     }
-
-    info(
-      `No configuration path provided. Attempting to auto-detect configuration from project root: ${this.projectBasePath}.`,
-    );
-    return (await loadConfig(
-      { extends: ['@commitlint/config-conventional'] },
-      loadOptions,
-    )) as LoadedCommitlintConfig;
   }
 
   /**
