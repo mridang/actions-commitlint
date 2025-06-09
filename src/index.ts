@@ -1,18 +1,19 @@
 import {
+  endGroup,
   getInput,
   info,
   setFailed as actionFailed,
   startGroup,
-  endGroup,
   warning,
 } from '@actions/core';
 import { cosmiconfig } from 'cosmiconfig';
-import type { CommitToLint, ICommitFetcher } from './types.js';
+import type { ICommitFetcher } from './types.js';
 
 import { Linter } from './linter/index.js';
 import { createLoaders } from './loaders.js';
 import { Context } from '@actions/github/lib/context.js';
 import getCommitFetcher from './fetchers/index.js';
+import DefaultFormatter from './linter/formatter.js';
 
 /**
  * Retrieves the 'commit-depth' input.
@@ -123,68 +124,6 @@ function getHelpURL(): string {
 }
 
 /**
- * Orchestrates the core commit linting process using the Linter class.
- *
- * @param commitsToProcess - Array of {@link CommitToLint} to be linted.
- * @param effectiveConfigPath - Path to the config file, or `null` for defaults.
- * @param helpUrl - Custom help URL from action input.
- * @param workspace - The GitHub workspace path.
- */
-async function runLintingProcess(
-  commitsToProcess: CommitToLint[],
-  effectiveConfigPath: string | null,
-  helpUrl: string,
-  workspace: string,
-): Promise<void> {
-  const failOnWarns = getFailOnWarnings();
-  const failOnErrs = getFailOnErrors();
-
-  const linter = new Linter(
-    commitsToProcess,
-    effectiveConfigPath,
-    helpUrl,
-    workspace,
-  );
-  const result = await linter.lint();
-
-  if (result.hasErrors()) {
-    if (failOnErrs) {
-      setFailed(`Commit linter failed:\n\n${result.formattedResults}`);
-    } else {
-      warning(`Commit messages have errors, but 'fail-on-errors' is false.`);
-      info("Action passed despite errors since 'fail-on-errors' is false.");
-    }
-  } else if (result.hasOnlyWarnings()) {
-    const warningsMessage = `Commit messages have warnings (but no errors):\n\n${result.formattedResults}`;
-    if (failOnWarns) {
-      setFailed(`Commit linter failed:\n\n${warningsMessage}`);
-    } else {
-      warning(warningsMessage);
-    }
-  } else {
-    if (
-      result.formattedResults.trim().length > 0 &&
-      result.lintedCommits.some(
-        (commit) => commit.lintResult.warnings.length > 0,
-      )
-    ) {
-      info(
-        `Linting complete. Some warnings were found but did not cause failure`,
-      );
-    } else if (
-      result.formattedResults.trim().length === 0 &&
-      result.lintedCommits.every(
-        (c) => c.lintResult.valid && c.lintResult.warnings.length === 0,
-      )
-    ) {
-      info('All commit messages are lint free!');
-    } else {
-      info(`Linting complete`);
-    }
-  }
-}
-
-/**
  * Sets the action's failure status with a given message.
  * In a JEST test environment, it throws an error instead of calling
  * `actionFailed`.
@@ -257,12 +196,41 @@ export async function run(
 
         if (commitsToLint.length > 0) {
           startGroup('Running commit-lint');
-          await runLintingProcess(
+          const failOnWarns = getFailOnWarnings();
+          const failOnErrs = getFailOnErrors();
+
+          const linter = new Linter(
             commitsToLint,
             result.filepath,
             helpUrl,
             workingDirectory,
           );
+          const result1 = await linter.lint();
+
+          await result1.format(new DefaultFormatter());
+          if (result1.hasErrors) {
+            if (failOnErrs) {
+              setFailed(
+                `Found ${result1.errorCount} commit messages with errors`,
+              );
+            } else {
+              warning(
+                `Commit messages have errors, but 'fail-on-errors' is false.`,
+              );
+            }
+          } else if (result1.hasOnlyWarnings) {
+            if (failOnWarns) {
+              setFailed(
+                `Found ${result1.warningCount} commit messages with warnings`,
+              );
+            } else {
+              warning(
+                `Commit messages have warning, but 'fail-on-warnings' is false.`,
+              );
+            }
+          } else {
+            info(`All ${result1.checkedCount} commit messages are okay.`);
+          }
           endGroup();
         } else {
           setFailed('No commits found to lint.');
