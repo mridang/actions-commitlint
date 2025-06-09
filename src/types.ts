@@ -1,7 +1,6 @@
 /* istanbul ignore file */
 import type {
   LintOptions,
-  LintOutcome,
   QualifiedRules,
   PluginRecords,
   ParserPreset,
@@ -25,13 +24,6 @@ export type OctokitInstance = InstanceType<typeof GitHub>;
 export interface CommitToLint {
   message: string;
   hash: string;
-}
-
-/**
- * Represents a commit after it has been linted, including the linting outcome.
- */
-export interface LintedCommit extends CommitToLint {
-  lintResult: LintOutcome;
 }
 
 /**
@@ -121,33 +113,4 @@ export interface LoadedCommitlintConfig {
   plugins: PluginRecords;
   helpUrl: string;
   prompt: UserPromptConfig;
-}
-
-/**
- * Represents the result of the linting process performed by the Linter class.
- * It encapsulates the linted commits, the formatted output string, and
- * provides helper methods to query the overall status of the linting.
- */
-export interface LinterResult {
-  /** An array of all commits that were processed, including their lint outcomes. */
-  readonly lintedCommits: LintedCommit[];
-  /** A formatted string representing all linting errors and warnings. */
-  readonly formattedResults: string;
-  /** The loaded commitlint configuration that was used for linting. */
-  readonly loadedConfig: LoadedCommitlintConfig;
-
-  /**
-   * Checks if any linted commits exist and if all of them are valid (no errors)
-   * but at least one commit has one or more warnings.
-   * @returns `true` if there are commits with only warnings, `false` otherwise.
-   */
-  hasOnlyWarnings(): boolean;
-
-  /**
-   * Checks if there are any linting errors across all processed commits.
-   * An error means a commit message is not valid according to the rules.
-   * @returns `true` if at least one commit has linting errors, `false`
-   * otherwise.
-   */
-  hasErrors(): boolean;
 }

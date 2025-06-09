@@ -75,7 +75,7 @@ describe('Commitlint Action Integration Tests', () => {
       event: { name: 'push', payload: {} },
       commits: [{ sha: 'err1', message: 'feat: an invalid type' }],
       expectToThrow: true,
-      expectedErrorMessage: 'Commit linter failed',
+      expectedErrorMessage: 'Found 1 commit messages with errors',
     },
     {
       description: 'Imperative config, valid commit, should pass',
