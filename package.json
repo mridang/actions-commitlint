@@ -1,5 +1,5 @@
 {
-	"name": "@mridang/actions-commitlint",
+	"name": "@mridang/action-commit-lint",
 	"version": "1.0.7",
 	"type": "module",
 	"scripts": {
@@ -36,10 +36,10 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/mridang/actions-commitlint.git"
+		"url": "git+https://github.com/mridang/action-commit-lint.git"
 	},
-	"homepage": "https://github.com/mridang/actions-commitlint",
-	"bugs": "https://github.com/mridang/actions-commitlint/issues",
+	"homepage": "https://github.com/mridang/action-commit-lint",
+	"bugs": "https://github.com/mridang/action-commit-lint/issues",
 	"dependencies": {
 		"@actions/core": "^1.11.1",
 		"@actions/github": "^6.0.1",
