@@ -1,40 +1,42 @@
 // noinspection ES6PreferShortImport
 import { Linter } from '../../src/linter/index.js';
-import fs, { existsSync, rmSync, writeFileSync } from 'node:fs';
-import path, { join as pathJoin } from 'node:path';
-import * as os from 'node:os';
+import { writeFileSync } from 'node:fs';
+import { join as pathJoin } from 'node:path';
 import { RuleConfigSeverity } from '@commitlint/types';
 import { stringify as stringifyYaml } from 'yaml';
 import { Results } from '../../src/linter/result.js';
+import { withTempDir } from '../helpers/with-temp-dir.js';
 
 describe('Linter', () => {
-  let testDir: string;
   const projectRootPath = process.cwd();
 
-  beforeEach(() => {
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-'));
-  });
+  // A single, comprehensive config used for all tests in this file
+  const comprehensiveConfig = {
+    rules: {
+      'type-enum': [RuleConfigSeverity.Error, 'always', ['feat', 'fix']],
+      'subject-empty': [RuleConfigSeverity.Error, 'never'],
+      'subject-case': [RuleConfigSeverity.Error, 'always', 'lower-case'],
+      'body-max-line-length': [RuleConfigSeverity.Warning, 'always', 10],
+    },
+  };
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
-  });
-
+  // Helper functions to create config files
   const createCommitlintrcJson = (
+    dir: string,
     configContent: object,
-    filename: string = '.commitlintrc.json',
+    filename: string,
   ) => {
-    const filePath = pathJoin(testDir, filename);
+    const filePath = pathJoin(dir, filename);
     writeFileSync(filePath, JSON.stringify(configContent, null, 2));
     return filePath;
   };
 
   const createCommitlintrcYaml = (
+    dir: string,
     configContent: object,
     filename: string = '.commitlintrc.yaml',
   ) => {
-    const filePath = pathJoin(testDir, filename);
+    const filePath = pathJoin(dir, filename);
     writeFileSync(filePath, stringifyYaml(configContent));
     return filePath;
   };
@@ -60,174 +62,185 @@ describe('Linter', () => {
   describe.each(configTestCases)(
     'with $fileType config file',
     ({ createConfigFn, filename }) => {
-      it('should load a self-contained config and lint commits successfully', async () => {
-        const configContent = {
-          rules: {
-            'type-enum': [RuleConfigSeverity.Error, 'always', ['feat', 'fix']],
-            'subject-empty': [RuleConfigSeverity.Error, 'never'],
-          },
-        };
-        const specifiedConfigPath = createConfigFn(configContent, filename);
+      it(
+        'should load the config and lint valid commits successfully',
+        withTempDir(async ({ tmp }) => {
+          const specifiedConfigPath = createConfigFn(
+            tmp,
+            comprehensiveConfig,
+            filename,
+          );
+          const linter = new Linter(
+            [
+              { hash: 'abc1', message: 'feat: new amazing feature' },
+              { hash: 'def2', message: 'fix: a small bug fix' },
+            ],
+            specifiedConfigPath,
+            'https://example.com/commit-help',
+            projectRootPath,
+          );
+          const result = await linter.lint();
 
-        const linter = new Linter(
-          [
-            { hash: 'abc1', message: 'feat: new amazing feature' },
-            { hash: 'def2', message: 'fix: a small bug fix' },
-          ],
-          specifiedConfigPath,
-          'https://example.com/commit-help',
-          projectRootPath,
-        );
-        const result = await linter.lint();
-
-        expect(result.items).toEqual([
-          {
-            hash: 'abc1',
-            valid: true,
-            errors: [],
-            warnings: [],
-            input: 'feat: new amazing feature',
-          },
-          {
-            hash: 'def2',
-            valid: true,
-            errors: [],
-            warnings: [],
-            input: 'fix: a small bug fix',
-          },
-        ]);
-        expect(result.hasErrors).toBe(false);
-        expect(result.hasOnlyWarnings).toBe(false);
-      });
-
-      it('should identify errors for invalid commits based on a self-contained config', async () => {
-        const configContent = {
-          rules: {
-            'type-enum': [RuleConfigSeverity.Error, 'always', ['feat', 'fix']],
-            'subject-case': [RuleConfigSeverity.Error, 'always', 'lower-case'],
-          },
-        };
-        const specifiedConfigPath = createConfigFn(configContent, filename);
-
-        const linter = new Linter(
-          [
+          expect(result.items).toEqual([
             {
               hash: 'abc1',
-              message: 'feat: New Feature With Uppercase Subject',
+              valid: true,
+              errors: [],
+              warnings: [],
+              input: 'feat: new amazing feature',
             },
-            { hash: 'def2', message: 'oops: unknown type' },
-          ],
-          specifiedConfigPath,
-          'https://example.com/commit-help',
-          projectRootPath,
-        );
-        const result = await linter.lint();
+            {
+              hash: 'def2',
+              valid: true,
+              errors: [],
+              warnings: [],
+              input: 'fix: a small bug fix',
+            },
+          ]);
+          expect(result.hasErrors).toBe(false);
+          expect(result.hasOnlyWarnings).toBe(false);
+        }),
+      );
 
-        expect(result.items).toEqual([
-          {
-            hash: 'abc1',
-            valid: false,
-            errors: [
+      it(
+        'should identify errors for invalid commits',
+        withTempDir(async ({ tmp }) => {
+          const specifiedConfigPath = createConfigFn(
+            tmp,
+            comprehensiveConfig,
+            filename,
+          );
+          const linter = new Linter(
+            [
               {
-                level: RuleConfigSeverity.Error,
-                valid: false,
-                name: 'subject-case',
-                message: 'subject must be lower-case',
+                hash: 'abc1',
+                message: 'feat: New Feature With Uppercase Subject',
+              },
+              { hash: 'def2', message: 'oops: unknown type' },
+            ],
+            specifiedConfigPath,
+            'https://example.com/commit-help',
+            projectRootPath,
+          );
+          const result = await linter.lint();
+
+          expect(result.items).toEqual([
+            {
+              hash: 'abc1',
+              valid: false,
+              errors: [
+                {
+                  level: RuleConfigSeverity.Error,
+                  valid: false,
+                  name: 'subject-case',
+                  message: 'subject must be lower-case',
+                },
+              ],
+              warnings: [],
+              input: 'feat: New Feature With Uppercase Subject',
+            },
+            {
+              hash: 'def2',
+              valid: false,
+              errors: [
+                {
+                  level: RuleConfigSeverity.Error,
+                  valid: false,
+                  name: 'type-enum',
+                  message: 'type must be one of [feat, fix]',
+                },
+              ],
+              warnings: [],
+              input: 'oops: unknown type',
+            },
+          ]);
+          expect(result.hasErrors).toBe(true);
+          expect(result.hasOnlyWarnings).toBe(false);
+        }),
+      );
+
+      it(
+        'should handle a commit with only warnings correctly',
+        withTempDir(async ({ tmp }) => {
+          const specifiedConfigPath = createConfigFn(
+            tmp,
+            comprehensiveConfig,
+            filename,
+          );
+          const linter = new Linter(
+            [
+              {
+                hash: 'mno5',
+                message:
+                  'fix: short\n\nThis body line is definitely longer than ten characters and should trigger a warning.',
               },
             ],
-            warnings: [],
-            input: 'feat: New Feature With Uppercase Subject',
-          },
-          {
-            hash: 'def2',
-            valid: false,
-            errors: [
-              {
-                level: RuleConfigSeverity.Error,
-                valid: false,
-                name: 'type-enum',
-                message: 'type must be one of [feat, fix]',
-              },
-            ],
-            warnings: [],
-            input: 'oops: unknown type',
-          },
-        ]);
-        expect(result.hasErrors).toBe(true);
-        expect(result.hasOnlyWarnings).toBe(false);
-      });
+            specifiedConfigPath,
+            'https://example.com/commit-help',
+            projectRootPath,
+          );
+          const result = await linter.lint();
 
-      it('should handle a commit with only warnings correctly using a self-contained config', async () => {
-        const configContent = {
-          rules: {
-            'body-max-line-length': [RuleConfigSeverity.Warning, 'always', 10],
-          },
-        };
-        const specifiedConfigPath = createConfigFn(configContent, filename);
-        const linter = new Linter(
-          [
+          expect(result.items).toEqual([
             {
               hash: 'mno5',
-              message:
+              valid: true,
+              errors: [],
+              warnings: [
+                {
+                  level: RuleConfigSeverity.Warning,
+                  valid: false,
+                  name: 'body-max-line-length',
+                  message: "body's lines must not be longer than 10 characters",
+                },
+              ],
+              input:
                 'fix: short\n\nThis body line is definitely longer than ten characters and should trigger a warning.',
             },
-          ],
-          specifiedConfigPath,
-          'https://example.com/commit-help',
-          projectRootPath,
-        );
-        const result = await linter.lint();
-
-        expect(result.items).toEqual([
-          {
-            hash: 'mno5',
-            valid: true,
-            errors: [],
-            warnings: [
-              {
-                level: RuleConfigSeverity.Warning,
-                valid: false,
-                name: 'body-max-line-length',
-                message: "body's lines must not be longer than 10 characters",
-              },
-            ],
-            input:
-              'fix: short\n\nThis body line is definitely longer than ten characters and should trigger a warning.',
-          },
-        ]);
-        expect(result.hasErrors).toBe(false);
-        expect(result.hasOnlyWarnings).toBe(true);
-      });
+          ]);
+          expect(result.hasErrors).toBe(false);
+          expect(result.hasOnlyWarnings).toBe(true);
+        }),
+      );
     },
   );
 
-  it('should throw an error if a specified config file is not found', async () => {
-    const specifiedConfigPath = pathJoin(
-      testDir,
-      'nonexistent.commitlintrc.json',
-    );
-    const linter = new Linter([], specifiedConfigPath, '', projectRootPath);
+  it(
+    'should throw an error if a specified config file is not found',
+    withTempDir(async ({ tmp }) => {
+      const specifiedConfigPath = pathJoin(
+        tmp,
+        'nonexistent.commitlintrc.json',
+      );
+      const linter = new Linter([], specifiedConfigPath, '', projectRootPath);
 
-    await expect(linter.lint()).rejects.toThrow(
-      `Specified configuration file was not found at: ${specifiedConfigPath}`,
-    );
-  });
+      await expect(linter.lint()).rejects.toThrow(
+        `Specified configuration file was not found at: ${specifiedConfigPath}`,
+      );
+    }),
+  );
 
-  it('should return a valid Results object for an empty list of commits', async () => {
-    // Create a valid config file so the linter doesn't throw an error for that.
-    const configPath = createCommitlintrcJson({ rules: {} });
-    const linter = new Linter(
-      [],
-      configPath,
-      'https://example.com/commit-help',
-      projectRootPath,
-    );
-    const result = await linter.lint();
+  it(
+    'should return a valid Results object for an empty list of commits',
+    withTempDir(async ({ tmp }) => {
+      const configPath = createCommitlintrcJson(
+        tmp,
+        comprehensiveConfig,
+        '.commitlintrc.json',
+      );
+      const linter = new Linter(
+        [],
+        configPath,
+        'https://example.com/commit-help',
+        projectRootPath,
+      );
+      const result = await linter.lint();
 
-    expect(result).toBeInstanceOf(Results);
-    expect(result.items).toEqual([]);
-    expect(result.checkedCount).toBe(0);
-    expect(result.hasErrors).toBe(false);
-    expect(result.hasOnlyWarnings).toBe(false);
-  });
+      expect(result).toBeInstanceOf(Results);
+      expect(result.items).toEqual([]);
+      expect(result.checkedCount).toBe(0);
+      expect(result.hasErrors).toBe(false);
+      expect(result.hasOnlyWarnings).toBe(false);
+    }),
+  );
 });

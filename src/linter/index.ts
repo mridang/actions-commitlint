@@ -16,14 +16,16 @@ import type {
 import { Results } from './result.js';
 
 /**
- * A flattened, simplified object representing the complete result of linting a single commit.
+ * A flattened, simplified object representing the complete result of linting a
+ * single commit.
  */
 export type SimplifiedLinterResult = {
   hash: string;
 } & LintOutcome;
 
 /**
- * Defines the contract for a formatter that writes a Results object to a GitHub Actions Summary.
+ * Defines the contract for a formatter that writes a Results object to a
+ * GitHub Actions Summary.
  */
 export interface Formatter {
   /**
@@ -33,12 +35,50 @@ export interface Formatter {
   format(results: Results): void;
 }
 
+/**
+ * Orchestrates the commit linting process. This class is responsible for
+ * loading commitlint configurations, linting a list of commit messages
+ * against those rules, and packaging the outcome into a structured `Results`
+ * object for further processing or display.
+ */
 export class Linter {
+  /**
+   * An immutable array of commit objects to be processed by the linter.
+   * @private
+   */
   private readonly commitsToLint: ReadonlyArray<CommitToLint>;
+
+  /**
+   * An optional, user-provided path to a commitlint configuration file.
+   * @private
+   */
   private readonly configPathInput: string | null;
+
+  /**
+   * A custom help URL to be used in formatted output, overriding the config.
+   * @private
+   */
   private readonly helpUrlInput: string;
+
+  /**
+   * The base directory from which to resolve configurations and plugins.
+   * @private
+   */
   private readonly projectBasePath: string;
 
+  /**
+   * Constructs a new Linter instance.
+   *
+   * @param commitsToLint An array of commit objects, each containing a hash
+   * and a message string, that are to be processed.
+   * @param configPathInput An optional, explicit path to a commitlint
+   * configuration file. If null, auto-detection will be used.
+   * @param helpUrlInput A custom URL to be displayed in formatted output,
+   * overriding any helpUrl from the loaded configuration.
+   * @param projectBasePath The root path of the project. This is used as the
+   * current working directory for loading configurations and resolving
+   * shareable presets (e.g., from `node_modules`).
+   */
   constructor(
     commitsToLint: ReadonlyArray<CommitToLint>,
     configPathInput: string | null,
@@ -51,6 +91,19 @@ export class Linter {
     this.projectBasePath = projectBasePath;
   }
 
+  /**
+   * Loads the effective commitlint configuration. If an explicit config path
+   * is provided and exists, it will be loaded. Otherwise, this method
+   * attempts to auto-detect a configuration file (e.g., `.commitlintrc.js`)
+   * from the project's base path. It defaults to
+   * `@commitlint/config-conventional` if no other config is found.
+   *
+   * @returns A promise that resolves to the loaded and parsed commitlint
+   * configuration object.
+   * @throws An error if `configPathInput` is specified but the file does
+   * not exist at that path.
+   * @private
+   */
   private async loadEffectiveConfig(): Promise<LoadedCommitlintConfig> {
     const loadOptions = { cwd: this.projectBasePath };
 
@@ -77,6 +130,14 @@ export class Linter {
     )) as LoadedCommitlintConfig;
   }
 
+  /**
+   * Executes the end-to-end linting process. This method first loads the
+   * configuration, then lints each provided commit message against the resolved
+   * rules, and finally returns a structured `Results` object.
+   *
+   * @returns A promise that resolves to a `Results` instance containing the
+   * detailed outcome of the linting for all processed commits.
+   */
   public async lint(): Promise<Results> {
     const loadedConfig = await this.loadEffectiveConfig();
 
