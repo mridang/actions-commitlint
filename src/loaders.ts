@@ -110,12 +110,18 @@ function imperativeLoader(loader: Loader, allowForce: boolean): Loader {
         cwd,
         stdio: 'inherit',
       });
+
+      execSync('npm ls --parseable', {
+        cwd,
+        encoding: 'utf8',
+      })
+        .split(/\r?\n/)
+        .forEach((line) => debug(line));
     } catch (err) {
-      error('npm install failed');
-      if (err instanceof Error) {
-        error(err.message);
+      if (err instanceof Error || typeof err === 'string') {
+        error(err);
       }
-      throw err;
+      throw new Error();
     } finally {
       endGroup();
     }
