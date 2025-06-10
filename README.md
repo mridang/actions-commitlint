@@ -59,12 +59,12 @@ This workflow is configured to trigger commit linting on `pull_request` events a
 
 ## Inputs
 
-* **`github-token`** (required): Your GitHub token, used to authenticate API requests for fetching commit information. It's best to use `secrets.GITHUB_TOKEN` or a Personal Access Token (PAT) with the necessary permissions.
-* **`commit-depth`** (optional): The maximum number of commits to lint from the push event. If you leave this empty, the action will lint all commits associated with the event.
-* **`allow-force-install`** (optional, default: `'false'`): Set this to `'true'` to let the action overwrite an existing `package.json` file and force `npm` to install dependencies with `--force`. This can help fix conflicting peer dependencies, but use it with caution as it might lead to a broken installation.
-* **`fail-on-warnings`** (optional, default: `'false'`): If `'true'`, the action will fail if any linting **warnings** are found. By default, warnings won't cause the action to fail.
-* **`fail-on-errors`** (optional, default: `'true'`): If `'false'`, the action will pass with a warning message even if linting **errors** are found. By default, errors will cause the action to fail.
-* **`help-url`** (optional): A URL that'll show up in linting error messages, guiding users to your project's specific commit message guidelines.
+- **`github-token`** (required): Your GitHub token, used to authenticate API requests for fetching commit information. It's best to use `secrets.GITHUB_TOKEN` or a Personal Access Token (PAT) with the necessary permissions.
+- **`commit-depth`** (optional): The maximum number of commits to lint from the push event. If you leave this empty, the action will lint all commits associated with the event.
+- **`allow-force-install`** (optional, default: `'false'`): Set this to `'true'` to let the action overwrite an existing `package.json` file and force `npm` to install dependencies with `--force`. This can help fix conflicting peer dependencies, but use it with caution as it might lead to a broken installation.
+- **`fail-on-warnings`** (optional, default: `'false'`): If `'true'`, the action will fail if any linting **warnings** are found. By default, warnings won't cause the action to fail.
+- **`fail-on-errors`** (optional, default: `'true'`): If `'false'`, the action will pass with a warning message even if linting **errors** are found. By default, errors will cause the action to fail.
+- **`help-url`** (optional): A URL that'll show up in linting error messages, guiding users to your project's specific commit message guidelines.
 
 ## Outputs
 
@@ -74,21 +74,22 @@ None
 
 This action uses `cosmiconfig` to find your `commitlint` configuration. It supports the following file formats:
 
-* `.commitlintrc`
-* `.commitlintrc.json`
-* `.commitlintrc.yaml`
-* `.commitlintrc.yml`
-* `.commitlintrc.js`
-* `.commitlintrc.cjs`
-* `.commitlintrc.mjs`
-* `.commitlintrc.ts`
-* `.commitlintrc.cts`
-* `commitlint.config.js`
-* `commitlint.config.cjs`
-* `commitlint.config.mjs`
-* `commitlint.config.ts`
-* `commitlint.config.cts`
-- `package.json` (under the `commitlint` key)
+- `.commitlintrc`
+- `.commitlintrc.json`
+- `.commitlintrc.yaml`
+- `.commitlintrc.yml`
+- `.commitlintrc.js`
+- `.commitlintrc.cjs`
+- `.commitlintrc.mjs`
+- `.commitlintrc.ts`
+- `.commitlintrc.cts`
+- `commitlint.config.js`
+- `commitlint.config.cjs`
+- `commitlint.config.mjs`
+- `commitlint.config.ts`
+- `commitlint.config.cts`
+
+* `package.json` (under the `commitlint` key)
 
 ### In Node.js (or related) projects
 
@@ -104,7 +105,19 @@ export default {
     'type-enum': [
       2,
       'always',
-      ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore', 'build', 'ci', 'perf', 'revert'],
+      [
+        'feat',
+        'fix',
+        'docs',
+        'style',
+        'refactor',
+        'test',
+        'chore',
+        'build',
+        'ci',
+        'perf',
+        'revert',
+      ],
     ],
     'body-leading-blank': [2, 'always'],
     'footer-leading-blank': [2, 'always'],
@@ -128,7 +141,19 @@ For projects not based on Node.js, we recommend using a declarative configuratio
     "type-enum": [
       2,
       "always",
-      ["feat", "fix", "docs", "style", "refactor", "test", "chore", "build", "ci", "perf", "revert"]
+      [
+        "feat",
+        "fix",
+        "docs",
+        "style",
+        "refactor",
+        "test",
+        "chore",
+        "build",
+        "ci",
+        "perf",
+        "revert"
+      ]
     ],
     "body-leading-blank": [2, "always"],
     "footer-leading-blank": [2, "always"]
@@ -140,13 +165,13 @@ The action will detect the plugins listed in these declarative files, create a t
 
 ## Known Issues
 
-* This action is designed to work specifically with `push` events, `pull_request` events, and `merge_group` events. Other event types are not currently supported.
+- This action is designed to work specifically with `push` events, `pull_request` events, and `merge_group` events. Other event types are not currently supported.
 
 ## Useful links
 
-* **[Commitlint](https://commitlint.js.org/):** The linter for commit messages that this action runs.
-* **[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):** A specification for adding human and machine-readable meaning to commit messages.
-* **[Cosmiconfig](https://github.com/cosmiconfig/cosmiconfig):** The universal configuration loader used by this action to find `commitlint` configurations.
+- **[Commitlint](https://commitlint.js.org/):** The linter for commit messages that this action runs.
+- **[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):** A specification for adding human and machine-readable meaning to commit messages.
+- **[Cosmiconfig](https://github.com/cosmiconfig/cosmiconfig):** The universal configuration loader used by this action to find `commitlint` configurations.
 
 ## Contributing
 
