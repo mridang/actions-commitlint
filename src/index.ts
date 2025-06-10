@@ -16,6 +16,7 @@ import { createLoaders } from './loaders.js';
 import { Context } from '@actions/github/lib/context.js';
 import getCommitFetcher from './fetchers/index.js';
 import DefaultFormatter from './linter/formatter.js';
+import path from 'node:path';
 
 /**
  * Retrieves the 'commit-depth' input.
@@ -157,6 +158,7 @@ export async function run(
   ) => getCommitFetcher(event),
 ): Promise<string | void> {
   try {
+    console.log(`Module search paths now: ${module.paths.join(', ')}`);
     const helpUrl = getHelpURL();
     const commitDepth = getCommitDepth();
     const githubToken = getGithubToken();
@@ -183,6 +185,12 @@ export async function run(
       // noinspection ExceptionCaughtLocallyJS
       throw new Error(`Configuration file "${result.filepath}" is empty.`);
     } else {
+
+      const projectNodeModules = path.join(workingDirectory, 'node_modules');
+      info(`Adding ${projectNodeModules} to Node.js module search path.`);
+      module.paths.push(projectNodeModules);
+      debug(`Module search paths now: ${module.paths.join(', ')}`);
+
       info(`Fetching commits for event: ${ghCtx.eventName}`);
       const commitFetcher = commitFetcherFactory(ghCtx.eventName);
       if (commitFetcher) {
