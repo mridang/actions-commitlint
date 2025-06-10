@@ -185,7 +185,6 @@ export async function run(
       // noinspection ExceptionCaughtLocallyJS
       throw new Error(`Configuration file "${result.filepath}" is empty.`);
     } else {
-
       const projectNodeModules = path.join(workingDirectory, 'node_modules');
       info(`Adding ${projectNodeModules} to Node.js module search path.`);
       module.paths.push(projectNodeModules);
