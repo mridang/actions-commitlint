@@ -101,7 +101,6 @@ export class Linter {
     if (this.configPathInput) {
       if (fsExistsSync(this.configPathInput)) {
         info(`Loading commitlint configuration from: ${this.configPathInput}`);
-        debug(`Using working directory: ${process.cwd()}`);
         return (await loadConfig(
           {},
           { cwd: this.projectBasePath, file: this.configPathInput },

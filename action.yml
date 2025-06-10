@@ -23,13 +23,6 @@ inputs:
       commits in the event will be linted.
     required: false
 
-  working-directory:
-    description: >
-      The directory to search for commitlint configuration files and to run
-      the linter from.
-    required: false
-    default: '.'
-
   allow-force-install:
     description: >
       If 'true', allows overwriting an existing package.json and forces
